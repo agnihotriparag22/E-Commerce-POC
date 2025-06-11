@@ -1,2 +1,2 @@
 # E-Commerce-POC
-E commerce application in python fastAPI and Next.js
+E commerce application in Python fastAPI and Next.js
