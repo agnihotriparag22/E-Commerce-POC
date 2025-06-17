@@ -95,4 +95,31 @@ async def get_payments_by_order(
         raise HTTPException(status_code=500, detail="Failed to fetch payments")
     except Exception as e:
         logger.error(f"Unexpected error fetching payments: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e)) 
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/payments/{payment_id}/order/{order_id}", response_model=PaymentResponse)
+async def update_payment_order_id(
+    payment_id: int,
+    order_id: int,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    logger.info(f"Updating payment {payment_id} with order ID {order_id}")
+    try:
+        payment = db.query(Payment).filter(Payment.id == payment_id).first()
+        if payment is None:
+            logger.warning(f"Payment not found with ID {payment_id}")
+            raise HTTPException(status_code=404, detail="Payment not found")
+        
+        payment.order_id = order_id
+        db.commit()
+        db.refresh(payment)
+        logger.info(f"Successfully updated payment {payment_id} with order ID {order_id}")
+        return payment
+    except SQLAlchemyError as e:
+        logger.error(f"Database error updating payment: {e}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to update payment due to database error")
+    except Exception as e:
+        logger.error(f"Unexpected error updating payment: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while updating payment") 

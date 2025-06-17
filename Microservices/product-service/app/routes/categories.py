@@ -9,10 +9,23 @@ from app.core.auth import verify_admin
 
 router = APIRouter()
 
+# @router.get("/", response_model=List[CategorySchema])
+# def read_categories(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+#     categories = db.query(Category).offset(skip).limit(limit).all()
+#     return categories
+
 @router.get("/", response_model=List[CategorySchema])
 def read_categories(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    categories = db.query(Category).offset(skip).limit(limit).all()
-    return categories
+    """Get all categories"""
+    try:
+        categories = db.query(Category).all()
+        return [{"id": cat.id, "name": cat.name, "description": cat.description} for cat in categories]
+    except Exception as e:
+        logger.error(f"Error fetching categories: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching categories: {str(e)}"
+        )
 
 @router.get("/{category_id}", response_model=CategoryWithProducts)
 def read_category(category_id: int, db: Session = Depends(get_db)):
