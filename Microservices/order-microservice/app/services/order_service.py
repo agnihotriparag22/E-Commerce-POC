@@ -1,4 +1,3 @@
-
 from sqlalchemy.orm import Session
 import httpx
 import os
@@ -15,6 +14,7 @@ class ProductService:
         self.base_url = os.getenv("PRODUCT_SERVICE_URL", "http://localhost:8002")
 
     async def get_product(self, product_id: str, auth_token: str) -> Dict[str, Any]:
+        logger.debug(f"Fetching product {product_id} from Product Service")
         async with httpx.AsyncClient() as client:
             try:
                 headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
@@ -22,6 +22,7 @@ class ProductService:
                     f"{self.base_url}/api/v1/products/{product_id}",
                     headers=headers
                 )
+                logger.debug(f"Product Service response for {product_id}: status={response.status_code}, body={response.text}")
                 if response.status_code == 200:
                     return response.json()
                 logger.error(f"Failed to get product {product_id}: {response.text}")
@@ -31,10 +32,13 @@ class ProductService:
                 raise
 
     async def check_stock(self, product_id: str, quantity: int, auth_token: str) -> bool:
+        logger.debug(f"Checking stock for product {product_id} with quantity {quantity}")
         product = await self.get_product(product_id, auth_token)
+        logger.debug(f"Product {product_id} stock: {product.get('stock', 0)}")
         return product.get("stock", 0) >= quantity
 
     async def update_stock(self, product_id: str, quantity: int, auth_token: str, increase: bool = False) -> None:
+        logger.debug(f"{'Increasing' if increase else 'Decreasing'} stock for product {product_id} by {quantity}")
         async with httpx.AsyncClient() as client:
             try:
                 headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
@@ -44,6 +48,7 @@ class ProductService:
                     json={"quantity": quantity},
                     headers=headers
                 )
+                logger.debug(f"Stock update response for product {product_id}: status={response.status_code}, body={response.text}")
                 if response.status_code != 200:
                     logger.error(f"Failed to update stock for product {product_id}: {response.text}")
                     raise Exception("Failed to update stock")
@@ -56,6 +61,7 @@ class PaymentService:
         self.base_url = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8003")
 
     async def create_payment(self, order_id: int, amount: float, payment_info: Dict[str, Any], auth_token: str) -> Dict[str, Any]:
+        logger.debug(f"Creating payment for order {order_id} with amount {amount}")
         async with httpx.AsyncClient() as client:
             try:
                 headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
@@ -71,6 +77,7 @@ class PaymentService:
                     },
                     headers=headers
                 )
+                logger.debug(f"Payment Service response for order {order_id}: status={response.status_code}, body={response.text}")
                 if response.status_code == 200:
                     return response.json()
                 logger.error(f"Payment creation failed: {response.text}")
@@ -80,6 +87,7 @@ class PaymentService:
                 raise
 
     async def verify_payment(self, payment_id: int, auth_token: str) -> bool:
+        logger.debug(f"Verifying payment {payment_id}")
         async with httpx.AsyncClient() as client:
             try:
                 headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
@@ -87,6 +95,7 @@ class PaymentService:
                     f"{self.base_url}/api/v1/payments/{payment_id}",
                     headers=headers
                 )
+                logger.debug(f"Payment verification response for payment {payment_id}: status={response.status_code}, body={response.text}")
                 if response.status_code == 200:
                     payment_data = response.json()
                     # Handle both cases: "SUCCESSFUL" and "successful"
@@ -97,6 +106,7 @@ class PaymentService:
                 return False
 
     async def update_payment_order_id(self, payment_id: int, order_id: int, auth_token: str) -> None:
+        logger.debug(f"Updating payment {payment_id} with order {order_id}")
         async with httpx.AsyncClient() as client:
             try:
                 headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
@@ -104,6 +114,7 @@ class PaymentService:
                     f"{self.base_url}/api/v1/payments/{payment_id}/order/{order_id}",
                     headers=headers
                 )
+                logger.debug(f"Update payment order_id response: status={response.status_code}, body={response.text}")
                 if response.status_code != 200:
                     logger.error(f"Failed to update payment {payment_id} with order {order_id}: {response.text}")
                     raise Exception("Failed to update payment")
@@ -124,12 +135,16 @@ class OrderService:
         
         try:
             # Step 1: Check stock availability
+            logger.debug(f"Checking stock for product {order_data.product_id} and quantity {order_data.quantity}")
             if not await self.product_service.check_stock(order_data.product_id, order_data.quantity, auth_token):
+                logger.warning(f"Insufficient stock for product {order_data.product_id}")
                 raise Exception("Insufficient stock")
 
             # Step 2: Get product details to calculate total amount
+            logger.debug(f"Fetching product details for product {order_data.product_id}")
             product = await self.product_service.get_product(order_data.product_id, auth_token)
             total_amount = product["price"] * order_data.quantity
+            logger.debug(f"Calculated total amount for order: {total_amount}")
 
             # Step 3: Validate payment amount from frontend matches calculated amount
             frontend_amount = order_data.payment_info.amount if order_data.payment_info else None
@@ -140,6 +155,7 @@ class OrderService:
                 # For now, we'll use the calculated amount for security
 
             # Step 4: Create order in PENDING state first
+            logger.debug("Adding order to database in PENDING state")
             db_order = Order(
                 user_id=order_data.user_id,
                 product_id=order_data.product_id,
@@ -179,6 +195,7 @@ class OrderService:
                 
                 if payment and payment_status == "SUCCESSFUL":
                     # Payment successful - update order status to COMPLETED
+                    logger.debug(f"Payment successful for order {db_order.id}, updating status to COMPLETED")
                     db_order.status = OrderStatus.COMPLETED
                     self.db.commit()
                     self.db.refresh(db_order)
@@ -186,6 +203,7 @@ class OrderService:
                     logger.info(f"Payment successful for order {db_order.id}, status updated to COMPLETED")
                     
                     # Step 7: Reduce stock after successful payment
+                    logger.debug(f"Reducing stock for product {order_data.product_id} after successful payment")
                     await self.product_service.update_stock(
                         order_data.product_id,
                         order_data.quantity,
@@ -212,6 +230,7 @@ class OrderService:
             # If order was created but something else failed, clean it up
             if db_order and db_order.id:
                 try:
+                    logger.debug(f"Cleaning up order {db_order.id} due to error")
                     await self._delete_order(db_order.id)
                 except Exception as cleanup_error:
                     logger.error(f"Failed to cleanup order {db_order.id}: {cleanup_error}")
@@ -219,6 +238,7 @@ class OrderService:
 
     async def _delete_order(self, order_id: int) -> None:
         """Private method to delete an order"""
+        logger.debug(f"Attempting to delete order {order_id}")
         try:
             order = self.db.query(Order).filter(Order.id == order_id).first()
             if order:
@@ -231,16 +251,20 @@ class OrderService:
             raise
 
     async def cancel_order(self, order_id: int, auth_token: str) -> Order:
+        logger.debug(f"Attempting to cancel order {order_id}")
         try:
             order = self.db.query(Order).filter(Order.id == order_id).first()
             if not order:
+                logger.warning(f"Order {order_id} not found for cancellation")
                 raise Exception("Order not found")
 
             if order.status == OrderStatus.COMPLETED:
+                logger.warning(f"Attempt to cancel completed order {order_id}")
                 raise Exception("Cannot cancel completed order")
 
             # Return stock if order was pending
             if order.status == OrderStatus.PENDING:
+                logger.debug(f"Returning stock for product {order.product_id} due to order {order_id} cancellation")
                 await self.product_service.update_stock(
                     order.product_id,
                     order.quantity,
@@ -251,21 +275,26 @@ class OrderService:
             order.status = OrderStatus.CANCELLED
             self.db.commit()
             self.db.refresh(order)
+            logger.info(f"Order {order_id} cancelled successfully")
             return order
         except Exception as e:
             logger.error(f"Error cancelling order {order_id}: {e}")
             raise
 
     def get_order(self, order_id: int) -> Optional[Order]:
+        logger.debug(f"Fetching order {order_id} from database")
         return self.db.query(Order).filter(Order.id == order_id).first()
 
     def get_orders_by_user(self, user_id: int) -> list[Order]:
+        logger.debug(f"Fetching orders for user {user_id}")
         return self.db.query(Order).filter(Order.user_id == user_id).all()
 
     def get_all_orders(self) -> list[Order]:
+        logger.debug("Fetching all orders from database")
         return self.db.query(Order).all()
 
     def update_order_status(self, order_id: int, status: OrderStatus) -> Optional[Order]:
+        logger.debug(f"Updating status for order {order_id} to {status}")
         order = self.get_order(order_id)
         if order:
             order.status = status

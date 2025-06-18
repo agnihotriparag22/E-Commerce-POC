@@ -32,6 +32,7 @@ def read_products(
     search: Optional[str] = Query(None, description="Search in product name and description"),
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Fetching products: page={page}, limit={limit}, category_id={category_id}, search={search}")
     try:
         # Calculate skip
         skip = (page - 1) * limit
@@ -41,8 +42,10 @@ def read_products(
         
         # Apply filters
         if category_id:
+            logger.debug(f"Filtering products by category_id={category_id}")
             query = query.filter(Product.category_id == category_id)
         if search:
+            logger.debug(f"Searching products with term='{search}'")
             search_term = f"%{search}%"
             query = query.filter(
                 (Product.name.ilike(search_term)) | 
@@ -57,7 +60,8 @@ def read_products(
         
         # Calculate total pages
         total_pages = (total + limit - 1) // limit
-        
+
+        logger.info(f"Returning {len(products)} products (total={total}, page={page}/{total_pages})")
         return {
             "products": products,
             "total": total,
@@ -73,9 +77,12 @@ def read_products(
 
 @router.get("/{product_id}", response_model=ProductSchema)
 def read_product(product_id: int, db: Session = Depends(get_db)):
+    logger.info(f"Fetching product with id={product_id}")
     product = db.query(Product).filter(Product.id == product_id).first()
     if product is None:
+        logger.warning(f"Product with id={product_id} not found")
         raise HTTPException(status_code=404, detail="Product not found")
+    logger.debug(f"Product found: {product}")
     return product
 
 @router.post("", response_model=ProductSchema)  # Empty string for root path
@@ -85,15 +92,18 @@ def create_product(
     db: Session = Depends(get_db),
     current_user: dict = Depends(verify_admin)
 ):
+    logger.info(f"Creating product: {product}")
     # Verify category exists
     category = db.query(Category).filter(Category.id == product.category_id).first()
     if not category:
+        logger.warning(f"Category with id={product.category_id} not found")
         raise HTTPException(status_code=404, detail="Category not found")
     
     db_product = Product(**product.dict())
     db.add(db_product)
     db.commit()
     db.refresh(db_product)
+    logger.info(f"Product created with id={db_product.id}")
     return db_product
 
 @router.put("/{product_id}", response_model=ProductSchema)
@@ -103,17 +113,21 @@ def update_product(
     db: Session = Depends(get_db),
     current_user: dict = Depends(verify_admin)
 ):
+    logger.info(f"Updating product id={product_id} with data={product}")
     db_product = db.query(Product).filter(Product.id == product_id).first()
     if db_product is None:
+        logger.warning(f"Product with id={product_id} not found for update")
         raise HTTPException(status_code=404, detail="Product not found")
     
     # Update only provided fields
     update_data = product.dict(exclude_unset=True)
     for field, value in update_data.items():
+        logger.debug(f"Updating field '{field}' to '{value}'")
         setattr(db_product, field, value)
     
     db.commit()
     db.refresh(db_product)
+    logger.info(f"Product id={product_id} updated successfully")
     return db_product
 
 @router.delete("/{product_id}")
@@ -122,12 +136,15 @@ def delete_product(
     db: Session = Depends(get_db),
     current_user: dict = Depends(verify_admin)
 ):
+    logger.info(f"Deleting product with id={product_id}")
     db_product = db.query(Product).filter(Product.id == product_id).first()
     if db_product is None:
+        logger.warning(f"Product with id={product_id} not found for deletion")
         raise HTTPException(status_code=404, detail="Product not found")
     
     db.delete(db_product)
     db.commit()
+    logger.info(f"Product id={product_id} deleted successfully")
     return {"message": "Product deleted successfully"}
 
 @router.post("/{product_id}/decrease-stock")
@@ -136,16 +153,20 @@ def decrease_stock(
     stock_update: StockUpdate,
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Decreasing stock for product id={product_id} by {stock_update.quantity}")
     product = db.query(Product).filter(Product.id == product_id).first()
     if product is None:
+        logger.warning(f"Product with id={product_id} not found for stock decrease")
         raise HTTPException(status_code=404, detail="Product not found")
     
     if product.stock < stock_update.quantity:
+        logger.warning(f"Insufficient stock for product id={product_id}: current={product.stock}, requested={stock_update.quantity}")
         raise HTTPException(status_code=400, detail="Insufficient stock")
     
     product.stock -= stock_update.quantity
     db.commit()
     db.refresh(product)
+    logger.info(f"Stock for product id={product_id} decreased successfully, new_stock={product.stock}")
     return {"message": "Stock decreased successfully", "new_stock": product.stock}
 
 @router.post("/{product_id}/increase-stock")
@@ -154,19 +175,24 @@ def increase_stock(
     stock_update: StockUpdate,
     db: Session = Depends(get_db)
 ):
+    logger.info(f"Increasing stock for product id={product_id} by {stock_update.quantity}")
     product = db.query(Product).filter(Product.id == product_id).first()
     if product is None:
+        logger.warning(f"Product with id={product_id} not found for stock increase")
         raise HTTPException(status_code=404, detail="Product not found")
     
     product.stock += stock_update.quantity
     db.commit()
     db.refresh(product)
+    logger.info(f"Stock for product id={product_id} increased successfully, new_stock={product.stock}")
     return {"message": "Stock increased successfully", "new_stock": product.stock}
 
 # Debug endpoints
 @router.get("/debug-token")
 async def debug_token(authorization: str = Header(None)):
+    logger.info("Debugging token endpoint called")
     if not authorization:
+        logger.warning("No authorization header provided")
         return {"error": "No authorization header provided"}
     
     try:
@@ -199,8 +225,10 @@ async def debug_token(authorization: str = Header(None)):
 
 @router.get("/test-auth")
 async def test_auth(current_user: dict = Depends(verify_token)):
+    logger.info("test-auth endpoint called, token is valid")
     return {"message": "Token is valid", "user": current_user}
 
 @router.get("/test-admin")
 async def test_admin(current_user: dict = Depends(verify_admin)):
-    return {"message": "Admin token is valid", "user": current_user} 
+    logger.info("test-admin endpoint called, admin token is valid")
+    return {"message": "Admin token is valid", "user": current_user}

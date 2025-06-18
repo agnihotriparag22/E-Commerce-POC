@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-
+import logging
 from app.db.database import get_db
 from app.models.product import Category
 from app.schemas.product import Category as CategorySchema, CategoryCreate, CategoryWithProducts
 from app.core.auth import verify_admin
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # @router.get("/", response_model=List[CategorySchema])

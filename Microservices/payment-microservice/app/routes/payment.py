@@ -58,6 +58,27 @@ async def create_payment(
         logger.error(f"Unexpected error creating payment: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred while creating payment")
 
+@router.get("/payments/", response_model=List[PaymentResponse])
+async def get_all_payments(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get all payments (admin only).
+    TODO: Add proper admin role check
+    """
+    logger.info(f"Fetching all payments by user {current_user['id']}")
+    try:
+        payments = db.query(Payment).all()
+        logger.info(f"Successfully fetched {len(payments)} payments")
+        return payments
+    except SQLAlchemyError as e:
+        logger.error(f"Error fetching all payments: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch payments")
+    except Exception as e:
+        logger.error(f"Unexpected error fetching payments: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/payments/{payment_id}", response_model=PaymentResponse)
 async def get_payment(
     payment_id: int, 
@@ -122,4 +143,4 @@ async def update_payment_order_id(
         raise HTTPException(status_code=500, detail="Failed to update payment due to database error")
     except Exception as e:
         logger.error(f"Unexpected error updating payment: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while updating payment") 
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while updating payment")
