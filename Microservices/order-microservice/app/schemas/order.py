@@ -31,3 +31,6 @@ class OrderResponse(OrderBase):
 class OrderList(BaseModel):
     orders: list[OrderResponse]
     total: int 
+
+class OrderWithTotal(OrderResponse):
+    total: float = 0.0
