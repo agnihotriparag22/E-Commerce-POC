@@ -1,29 +1,62 @@
 import os
 import httpx
 import logging
+from dotenv import load_dotenv
 
-KAFKA_REST_PROXY_URL = os.getenv("KAFKA_REST_PROXY_URL")
-KAFKA_TOPIC = os.getenv("KAFKA_TOPIC", "order-events")
+# Load environment variables
+load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 class RestProxyService:
-    def __init__(self, topic: str = KAFKA_TOPIC):
-        self.topic = topic
-        self.base_url = KAFKA_REST_PROXY_URL
+    def __init__(self, topic: str = None):
+        # Load environment variables in the constructor
+        self.base_url = os.getenv("KAFKA_REST_PROXY_URL")
+        self.topic = topic or os.getenv("KAFKA_TOPIC", "order-events")
+        
+        # Validate that the base_url is set and has proper protocol
+        if not self.base_url:
+            raise ValueError("KAFKA_REST_PROXY_URL environment variable is not set")
+        
+        # Ensure the URL has proper protocol
+        if not self.base_url.startswith(('http://', 'https://')):
+            logger.warning(f"Adding http:// protocol to Kafka REST Proxy URL: {self.base_url}")
+            self.base_url = f"http://{self.base_url}"
+        
+        logger.info(f"RestProxyService initialized with URL: {self.base_url}, Topic: {self.topic}")
 
-    async def send_event(self, value: dict, key: str = None):
+    async def send_event(self, value: dict, key: str = None, auth_token: str = None):
         headers = {"Content-Type": "application/vnd.kafka.json.v2+json"}
+        
+        # Add authorization header if token is provided
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+        
         payload = {
             "records": [
                 {"value": value} if not key else {"key": key, "value": value}
             ]
         }
+        
         url = f"{self.base_url}/topics/{self.topic}"
+        logger.debug(f"Sending event to URL: {url}")
+        logger.debug(f"Payload: {payload}")
+        
         async with httpx.AsyncClient() as client:
             try:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
-                logging.info(f"Sent event to Kafka REST Proxy: {value}")
+                logger.info(f"Successfully sent event to Kafka REST Proxy: {value}")
                 return response.json()
+            except httpx.RequestError as e:
+                logger.error(f"Request error sending event to Kafka REST Proxy: {e}")
+                logger.error(f"URL attempted: {url}")
+                raise
+            except httpx.HTTPStatusError as e:
+                logger.error(f"HTTP error sending event to Kafka REST Proxy: {e}")
+                logger.error(f"Response: {e.response.text}")
+                raise
             except Exception as e:
-                logging.error(f"Failed to send event to Kafka REST Proxy: {e}")
+                logger.error(f"Failed to send event to Kafka REST Proxy: {e}")
+                logger.error(f"URL attempted: {url}")
                 raise

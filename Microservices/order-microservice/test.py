@@ -29,3 +29,5 @@ async def test_schema_registry():
 if __name__ == "__main__":
     asyncio.run(test_rest_proxy())
     asyncio.run(test_schema_registry())
+    
+    

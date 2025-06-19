@@ -4,6 +4,8 @@ import os
 import logging
 from typing import Optional, Dict, Any
 from app.models.order import Order, OrderStatus
+from app.services.rest_proxy import RestProxyService
+
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.db.database import get_db
 
@@ -59,6 +61,7 @@ class ProductService:
 class PaymentService:
     def __init__(self):
         self.base_url = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8003")
+        self.rest_proxy = RestProxyService()
 
     async def create_payment(self, order_id: int, amount: float, payment_info: Dict[str, Any], auth_token: str) -> Dict[str, Any]:
         logger.debug(f"Creating payment for order {order_id} with amount {amount}")
@@ -79,7 +82,21 @@ class PaymentService:
                 )
                 logger.debug(f"Payment Service response for order {order_id}: status={response.status_code}, body={response.text}")
                 if response.status_code == 200:
+                    
+                    # Rest proxy implementation for payment creation
+                    await self.rest_proxy.send_event({
+                        "event": "payment_initiated",
+                        "order_id": order_id,
+                        "amount": amount,
+                        "payment_info": payment_info,
+                        # "card_number": payment_info.card_number,
+                        # "card_holder_name": payment_info.card_holder_name,
+                        # "expiry_date": payment_info.expiry_date,
+                        # "cvv": payment_info.cvv
+                    }, auth_token=auth_token)
+                    
                     return response.json()
+                    
                 logger.error(f"Payment creation failed: {response.text}")
                 raise Exception("Payment creation failed")
             except Exception as e:
@@ -98,6 +115,13 @@ class PaymentService:
                 logger.debug(f"Payment verification response for payment {payment_id}: status={response.status_code}, body={response.text}")
                 if response.status_code == 200:
                     payment_data = response.json()
+                    
+                    # Rest proxy implementation for payment verification
+                    await self.rest_proxy.send_event({
+                        "event": "payment_verified",
+                        "payment_id": payment_id
+                    },auth_token=auth_token)
+                     
                     # Handle both cases: "SUCCESSFUL" and "successful"
                     return payment_data.get("status", "").upper() == "SUCCESSFUL"
                 return False
@@ -118,6 +142,14 @@ class PaymentService:
                 if response.status_code != 200:
                     logger.error(f"Failed to update payment {payment_id} with order {order_id}: {response.text}")
                     raise Exception("Failed to update payment")
+                
+                # Rest proxy implementation for payment update with order_id
+                await self.rest_proxy.send_event({
+                    "event": "payment_updated",
+                    "payment_id": payment_id,
+                    "order_id": order_id
+                }, auth_token=auth_token)
+                
             except Exception as e:
                 logger.error(f"Error updating payment {payment_id} with order {order_id}: {e}")
                 raise
@@ -127,6 +159,7 @@ class OrderService:
         self.db = db
         self.product_service = ProductService()
         self.payment_service = PaymentService()
+        self.rest_proxy = RestProxyService()
 
     async def create_order(self, order_data: OrderCreate, auth_token: str) -> Order:
         logger.info(f"Creating order: {order_data}")
@@ -164,6 +197,17 @@ class OrderService:
             )
             self.db.add(db_order)
             self.db.commit()
+
+            #Rest Proxy implementation for order creation in Pending status
+            await self.rest_proxy.send_event({
+                    "event": "pending_order_created",
+                    "order_id": db_order.id,
+                    "user_id": order_data.user_id,
+                    "product_id": order_data.product_id,
+                    "quantity": order_data.quantity,
+                    "status": OrderStatus.PENDING.value
+            }, auth_token=auth_token)
+            
             self.db.refresh(db_order)
             
             logger.info(f"Order created with ID: {db_order.id} in PENDING state")
@@ -198,6 +242,17 @@ class OrderService:
                     logger.debug(f"Payment successful for order {db_order.id}, updating status to COMPLETED")
                     db_order.status = OrderStatus.COMPLETED
                     self.db.commit()
+                    
+                    #Rest Proxy implementation for order creation in completed status
+                    await self.rest_proxy.send_event({
+                        "event": "order_created",
+                        "order_id": db_order.id,
+                        "user_id": order_data.user_id,
+                        "product_id": order_data.product_id,
+                        "quantity": order_data.quantity,
+                        "status": OrderStatus.COMPLETED.value
+                    }, auth_token=auth_token)
+                    
                     self.db.refresh(db_order)
                     
                     logger.info(f"Payment successful for order {db_order.id}, status updated to COMPLETED")
@@ -244,6 +299,13 @@ class OrderService:
             if order:
                 self.db.delete(order)
                 self.db.commit()
+                
+                #Rest Proxy Implementation for order_deletion
+                await self.rest_proxy.send_event({
+                "event": "order_deleted",
+                "order_id": order_id
+                }, auth_token=None)
+                
                 logger.info(f"Order {order_id} deleted successfully")
         except Exception as e:
             logger.error(f"Error deleting order {order_id}: {e}")
@@ -274,6 +336,13 @@ class OrderService:
 
             order.status = OrderStatus.CANCELLED
             self.db.commit()
+            
+            #Rest Proxy Implementation for order_cancellation
+            await self.rest_proxy.send_event({
+                "event": "order_cancelled",
+                "order_id": order_id
+            }, auth_token=auth_token)
+            
             self.db.refresh(order)
             logger.info(f"Order {order_id} cancelled successfully")
             return order
