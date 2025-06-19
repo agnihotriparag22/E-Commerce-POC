@@ -185,6 +185,7 @@ def increase_stock(
     db.commit()
     db.refresh(product)
     logger.info(f"Stock for product id={product_id} increased successfully, new_stock={product.stock}")
+    
     return {"message": "Stock increased successfully", "new_stock": product.stock}
 
 # Debug endpoints
