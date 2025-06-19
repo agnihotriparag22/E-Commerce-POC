@@ -400,6 +400,7 @@ def increase_stock(
         raise HTTPException(status_code=404, detail="Product not found")
     
     logger.info(f"Stock for product id={product_id} increased successfully, new_stock={product.stock}")
+    
     return {"message": "Stock increased successfully", "new_stock": product.stock}
 
 # Debug endpoints
