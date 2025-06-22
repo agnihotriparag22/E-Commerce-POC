@@ -47,7 +47,7 @@ def consume_logs(topic_name, bootstrap_servers='3.145.107.119:9092'):
 # Example usage
 if __name__ == "__main__":
     # Replace with your actual topic name and Kafka server details
-    TOPIC_NAME = "order-events"
+    TOPIC_NAME = "product-events"
     KAFKA_SERVERS = "3.145.107.119:9092"  # Change to your Kafka broker address
     
     consume_logs(

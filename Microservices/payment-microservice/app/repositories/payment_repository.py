@@ -5,12 +5,14 @@ from typing import List, Optional
 import logging
 import bcrypt
 from app.models.payment import Payment, PaymentStatus
+from app.services.rest_proxy import RestProxyService
 
 logger = logging.getLogger(__name__)
 
 class PaymentRepository:
     def __init__(self, db: Session):
         self.db = db
+        self.rest_proxy = RestProxyService()
 
     def get_successful_payment_by_order_id(self, order_id: int) -> Optional[Payment]:
         """Check if a successful payment already exists for the given order"""

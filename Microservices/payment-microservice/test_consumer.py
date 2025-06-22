@@ -2,7 +2,7 @@ from kafka import KafkaConsumer
 import json
 import logging
 
-def consume_logs(topic_name, bootstrap_servers='3.145.107.119:9092'):
+def consume_logs(topic_name, bootstrap_servers='3.16.75.39:9092'):
     
     try:
         # Create Kafka consumer
@@ -47,8 +47,8 @@ def consume_logs(topic_name, bootstrap_servers='3.145.107.119:9092'):
 # Example usage
 if __name__ == "__main__":
     # Replace with your actual topic name and Kafka server details
-    TOPIC_NAME = "order-events"
-    KAFKA_SERVERS = "3.145.107.119:9092"  # Change to your Kafka broker address
+    TOPIC_NAME = "payment-events"
+    KAFKA_SERVERS = "3.16.75.39:9092"  # Change to your Kafka broker address
     
     consume_logs(
         topic_name=TOPIC_NAME,

@@ -3,7 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Tuple
 import logging
 from app.models.product import Product, Category
+from app.services.rest_proxy import RestProxyService
 from app.db.database import get_db
+from app.schemas.schema_registry import SchemaRegistryService
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +14,33 @@ logger = logging.getLogger(__name__)
 class ProductRepository:
     def __init__(self, db: Session):
         self.db = db
+        self.rest_proxy = RestProxyService()
+        self.schema_registry = SchemaRegistryService(subject = "product-events-value")
+        product_event_schema = {
+            "type": "record",
+            "name": "ProductEvent",
+            "fields": [
+                {"name": "event", "type": "string"},
+                {"name": "product_id", "type": "int"},
+                {"name": "product_data", "type": {
+                    "type": "record",
+                    "name": "ProductData",
+                    "fields": [
+                        {"name": "name", "type": "string"},
+                        {"name": "description", "type": "string"},
+                        {"name": "price", "type": "double"},
+                        {"name": "category_id", "type": "int"},
+                        {"name": "stock", "type": "int"}
+                    ]
+                }}
+            ]
+        }
+        schema_json = json.dumps(product_event_schema)
+        
+        result = self.schema_registry.register_schema(schema_json)
+
+        logger.info(f"Product Schema registered successfully: {result}")
+        
 
     def get_products_paginated(
         self,
@@ -71,6 +101,14 @@ class ProductRepository:
         db_product = Product(**product_data)
         self.db.add(db_product)
         self.db.commit()
+        
+        # Rest Proxy implementation for product creation
+        self.rest_proxy.send_event({
+            "event": "product-created",
+            "product_id": db_product.id,
+            "product_data": product_data
+        })
+        
         self.db.refresh(db_product)
         logger.debug(f"Repository: Product created with id={db_product.id}")
         return db_product
@@ -94,6 +132,14 @@ class ProductRepository:
             setattr(db_product, field, value)
 
         self.db.commit()
+        
+        # Rest Proxy implementation for product update
+        self.rest_proxy.send_event({
+            "event": "product-updated",
+            "product_id": db_product.id,
+            "updated_data": update_data
+        })
+        
         self.db.refresh(db_product)
         logger.debug(f"Repository: Product id={product_id} updated successfully")
         return db_product
@@ -111,6 +157,13 @@ class ProductRepository:
 
         self.db.delete(db_product)
         self.db.commit()
+        
+        # Rest Proxy implementation for product deletion
+        self.rest_proxy.send_event({
+            "event": "product-deleted",
+            "product_id": product_id
+        })
+        
         logger.debug(f"Repository: Product id={product_id} deleted successfully")
         return True
 
@@ -140,6 +193,21 @@ class ProductRepository:
 
         product.stock -= quantity
         self.db.commit()
+        
+        # Rest Proxy implementation for stock decrease
+        self.rest_proxy.send_event({
+            "event": "product-stock-decreased",
+            "product_id": product.id,
+            "quantity": quantity,
+            "new_stock": product.stock
+        })
+        if product.stock == 0:
+            self.rest_proxy.send_event({
+                "event": "product-out-of-stock",
+                "product_id": product.id
+            })
+            logger.debug(f"Repository: Product id={product_id} is now out of stock")
+            
         self.db.refresh(product)
         logger.debug(
             f"Repository: Stock for product id={product_id} decreased successfully, new_stock={product.stock}"
@@ -163,6 +231,21 @@ class ProductRepository:
 
         product.stock += quantity
         self.db.commit()
+        
+        # Rest Proxy implementation for stock increase
+        self.rest_proxy.send_event({
+            "event": "product-stock-increased",
+            "product_id": product.id,
+            "quantity": quantity,
+            "new_stock": product.stock
+        })
+        if product.stock > 0:
+            self.rest_proxy.send_event({
+                "event": "product-in-stock",
+                "product_id": product.id
+            })
+            logger.debug(f"Repository: Product id={product_id} is now in stock")
+            
         self.db.refresh(product)
         logger.debug(
             f"Repository: Stock for product id={product_id} increased successfully, new_stock={product.stock}"

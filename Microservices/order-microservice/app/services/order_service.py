@@ -1,10 +1,12 @@
 from sqlalchemy.orm import Session
 import httpx
 import os
+import json
 import logging
 from typing import Optional, Dict, Any
 from app.models.order import Order, OrderStatus
 from app.services.rest_proxy import RestProxyService
+from app.schemas.schema_registry import SchemaRegistryService
 
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.db.database import get_db
@@ -62,6 +64,37 @@ class PaymentService:
     def __init__(self):
         self.base_url = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8003")
         self.rest_proxy = RestProxyService()
+        self.schema_registry = SchemaRegistryService( subject = "payment-events-value")
+        payment_event_schema = {
+                    "type": "record",
+                    "name": "PaymentEvent",
+                    "fields": [
+                        {"name": "event", "type": "string"},
+                        {"name": "order_id", "type": "int"},
+                        {"name": "amount", "type": "double"},
+                        {
+                            "name": "payment_info",
+                            "type": {
+                                "type": "record",
+                                "name": "PaymentInfo",
+                                "fields": [
+                                    {"name": "card_holder_name", "type": ["null", "string"], "default": None},
+                                    {"name": "card_number_masked", "type": ["null", "string"], "default": None},  # Only last 4 digits
+                                    {"name": "expiry_date", "type": ["null", "string"], "default": None},
+                                    {"name": "cvv", "type": "string", "default": None}
+                                ]
+                            }
+                        },
+                        {"name": "payment_id", "type": ["null", "string"], "default": None},
+                        {"name": "status", "type": ["null", "string"], "default": None}
+                    ]
+                }
+        
+        schema_json = json.dumps(payment_event_schema)
+        result = self.schema_registry.register_schema(schema_json)
+        
+        logger.info(f"Payment Schema registered successfully: {result}")
+        
 
     async def create_payment(self, order_id: int, amount: float, payment_info: Dict[str, Any], auth_token: str) -> Dict[str, Any]:
         logger.debug(f"Creating payment for order {order_id} with amount {amount}")
@@ -160,6 +193,23 @@ class OrderService:
         self.product_service = ProductService()
         self.payment_service = PaymentService()
         self.rest_proxy = RestProxyService()
+        self.schema_registry = SchemaRegistryService(subject="order-events-value")
+        order_event_schema = {
+                    "type": "record",
+                    "name": "OrderEvent",
+                    "fields": [
+                        {"name": "event", "type": "string"},
+                        {"name": "order_id", "type": "int"},
+                        {"name": "user_id", "type": "int"},
+                        {"name": "product_id", "type": "int"},
+                        {"name": "quantity", "type": "int"},
+                        {"name": "status", "type": "string"}
+                    ]
+                }
+        schema_json = json.dumps(order_event_schema)
+        result = self.schema_registry.register_schema(schema_json)
+        
+        logger.info(f"Order Schema registered successfully: {result}")
 
     async def create_order(self, order_data: OrderCreate, auth_token: str) -> Order:
         logger.info(f"Creating order: {order_data}")
