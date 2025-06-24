@@ -1,5 +1,5 @@
 import os
-import httpx
+import requests
 import logging
 from dotenv import load_dotenv
 
@@ -25,7 +25,7 @@ class RestProxyService:
         
         logger.info(f"RestProxyService initialized with URL: {self.base_url}, Topic: {self.topic}")
 
-    async def send_event(self, value: dict, key: str = None, auth_token: str = None):
+    def send_event(self, value: dict, key: str = None, auth_token: str = None):
         headers = {"Content-Type": "application/vnd.kafka.json.v2+json"}
         
         # Add authorization header if token is provided
@@ -42,21 +42,20 @@ class RestProxyService:
         logger.debug(f"Sending event to URL: {url}")
         logger.debug(f"Payload: {payload}")
         
-        async with httpx.AsyncClient() as client:
-            try:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                logger.info(f"Successfully sent event to Kafka REST Proxy: {value}")
-                return response.json()
-            except httpx.RequestError as e:
-                logger.error(f"Request error sending event to Kafka REST Proxy: {e}")
-                logger.error(f"URL attempted: {url}")
-                raise
-            except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error sending event to Kafka REST Proxy: {e}")
-                logger.error(f"Response: {e.response.text}")
-                raise
-            except Exception as e:
-                logger.error(f"Failed to send event to Kafka REST Proxy: {e}")
-                logger.error(f"URL attempted: {url}")
-                raise
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info(f"Successfully sent event to Kafka REST Proxy: {value}")
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Request error sending event to Kafka REST Proxy: {e}")
+            logger.error(f"URL attempted: {url}")
+            raise
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"HTTP error sending event to Kafka REST Proxy: {e}")
+            logger.error(f"Response: {e.response.text}")
+            raise
+        except Exception as e:
+            logger.error(f"Failed to send event to Kafka REST Proxy: {e}")
+            logger.error(f"URL attempted: {url}")
+            raise
