@@ -139,6 +139,10 @@ uservenv
 ordervenv
 productvenv
 payvenv
+userenv
+orderenv
+productenv
+payenv
 
 # Spyder project settings
 .spyderproject

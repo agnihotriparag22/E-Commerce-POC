@@ -1,0 +1,15 @@
+{
+    "name": "order-db-connector",
+    "config": {
+      "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+      "database.hostname": "localhost",
+      "database.port": "3306",
+      "database.user": "root",
+      "database.password": "root",
+      "database.server.id": "184051",
+      "database.server.name": "orderdb",
+      "database.include.list": "order_db",
+      "database.history.kafka.bootstrap.servers": "kafka:9092",
+      "database.history.kafka.topic": "schema-changes.order_db"
+    }
+  }

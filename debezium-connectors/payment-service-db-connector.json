@@ -1,0 +1,15 @@
+{
+    "name": "payment-service-db-connector",
+    "config": {
+      "connector.class": "io.debezium.connector.mysql.MySqlConnector",
+      "database.hostname": "localhost",
+      "database.port": "3306",
+      "database.user": "root",
+      "database.password": "root",
+      "database.server.id": "184053",
+      "database.server.name": "paymentservicedb",
+      "database.include.list": "payment_service_db",
+      "database.history.kafka.bootstrap.servers": "kafka:9092",
+      "database.history.kafka.topic": "schema-changes.payment_service_db"
+    }
+  }
