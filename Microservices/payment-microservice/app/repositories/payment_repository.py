@@ -29,29 +29,35 @@ class PaymentRepository:
         
         return payment
 
-    def create_payment(self, payment_data: dict) -> Payment:
+    def create_payment(self, payment_info: dict) -> Payment:
         """Create a new payment with hashed CVV"""
-        logger.debug(f"Repository: Creating payment for order {payment_data.get('order_id')}")
+        logger.debug(f"Repository: Creating payment for order {payment_info.get('order_id')}")
         
         # Hash the CVV
         hashed_cvv = bcrypt.hashpw(
-            payment_data['cvv'].encode('utf-8'), 
+            payment_info['cvv'].encode('utf-8'), 
             bcrypt.gensalt()
         )
         
         # Create payment object
         db_payment = Payment(
-            order_id=payment_data['order_id'],
-            amount=payment_data['amount'],
-            card_number=payment_data['card_number'],
-            card_holder_name=payment_data['card_holder_name'],
-            expiry_date=payment_data['expiry_date'],
+            order_id=payment_info['order_id'],
+            amount=payment_info['amount'],
+            card_number=payment_info['card_number'],
+            card_holder_name=payment_info['card_holder_name'],
+            expiry_date=payment_info['expiry_date'],
             hashed_cvv=hashed_cvv.decode('utf-8'),
             status=PaymentStatus.SUCCESSFUL
         )
         
         self.db.add(db_payment)
         self.db.commit()
+        self.rest_proxy.send_event({
+            "event": "payment_created",
+            "order_id": db_payment.order_id,
+            "amount": db_payment.amount,
+            "payment_info": payment_info,
+        })
         self.db.refresh(db_payment)
         
         logger.debug(f"Repository: Payment created successfully with ID {db_payment.id}")

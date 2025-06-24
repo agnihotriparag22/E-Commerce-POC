@@ -117,16 +117,16 @@ class PaymentService:
                 if response.status_code == 200:
                     
                     # Rest proxy implementation for payment creation
-                    await self.rest_proxy.send_event({
-                        "event": "payment_initiated",
-                        "order_id": order_id,
-                        "amount": amount,
-                        "payment_info": payment_info,
-                        # "card_number": payment_info.card_number,
-                        # "card_holder_name": payment_info.card_holder_name,
-                        # "expiry_date": payment_info.expiry_date,
-                        # "cvv": payment_info.cvv
-                    }, auth_token=auth_token)
+                    # await self.rest_proxy.send_event({
+                    #         "event": "payment_initiated",
+                    #         "order_id": order_id,
+                    #         "amount": amount,
+                    #         "payment_info": payment_info,
+                    #         # "card_number": payment_info.card_number,
+                    #         # "card_holder_name": payment_info.card_holder_name,
+                    #         # "expiry_date": payment_info.expiry_date,
+                    #         # "cvv": payment_info.cvv
+                    #     }, auth_token=auth_token)
                     
                     return response.json()
                     
