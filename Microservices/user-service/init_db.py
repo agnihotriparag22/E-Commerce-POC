@@ -36,9 +36,76 @@ def init_db():
             "email": "parag@example.com",
             "password": "parag123",
             "is_admin": False
-        }
+        },
+        {
+            "username": "ishita",
+            "email": "ishita@example.com",
+            "password": "ishita123",
+            "is_admin": False
+        },
+        {
+            "username": "sanika",
+            "email": "sanika@example.com",
+            "password": "sanika123",
+            "is_admin": False
+        },
+        {
+            "username": "viral",
+            "email": "viral@example.com",
+            "password": "viral123",
+            "is_admin": False
+        },
+        {
+            "username": "rachit",
+            "email": "rachit@example.com",
+            "password": "rachit123",
+            "is_admin": False
+        },
+        {
+            "username": "abhishek",
+            "email": "abhishek@example.com",
+            "password": "abhishek123",
+            "is_admin": False
+        },
+        {
+            "username": "shefali",
+            "email": "shefali@example.com",
+            "password": "shefali123",
+            "is_admin": False
+        },
+        {
+            "username": "anshu",
+            "email": "anshu@example.com",
+            "password": "anshu123",
+            "is_admin": False
+        },
+        {
+            "username": "vividh",
+            "email": "vividh@example.com",
+            "password": "vividh123",
+            "is_admin": False
+        },
+        {
+            "username": "durgesh",
+            "email": "durgesh@example.com",
+            "password": "durgesh123",
+            "is_admin": False
+        },
+        {
+            "username": "aditya",
+            "email": "aditya@example.com",
+            "password": "aditya123",
+            "is_admin": False
+        },
+        {
+            "username": "rajkuwar",
+            "email": "rajkuwar@example.com",
+            "password": "rajkuwar123",
+            "is_admin": False
+        },
     ]
 
+    
     for user_data in users:
         hashed_password = security.get_password_hash(user_data["password"])
         db_user = user.User(
