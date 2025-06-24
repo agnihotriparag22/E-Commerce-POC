@@ -12,7 +12,7 @@ class RestProxyService:
     def __init__(self, topic: str = None):
         # Load environment variables in the constructor
         self.base_url = os.getenv("KAFKA_REST_PROXY_URL")
-        self.topic = topic or os.getenv("KAFKA_TOPIC", "order-events")
+        self.topic = topic or os.getenv("KAFKA_TOPIC", "payment-events")
         
         # Validate that the base_url is set and has proper protocol
         if not self.base_url:
