@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import order
 from app.db.database import engine, Base
 from app.kafka_logger import get_kafka_logger
+import os
 
 # Configure logging
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")

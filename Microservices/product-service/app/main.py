@@ -4,6 +4,8 @@ from app.routes import products_router, categories_router
 from app.db.database import engine
 from app.models.product import Base
 from app.kafka_logger import get_kafka_logger
+import os
+from dotenv import load_dotenv
 
 # Create database tables
 Base.metadata.create_all(bind=engine)

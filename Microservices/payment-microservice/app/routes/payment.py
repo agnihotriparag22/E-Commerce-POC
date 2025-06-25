@@ -3,10 +3,13 @@ from typing import List
 from app.schemas.payment import PaymentCreate, PaymentResponse
 from app.core.auth import get_current_user
 from app.repositories.payment_repository import PaymentRepository, get_payment_repository
-import logging
 from sqlalchemy.exc import SQLAlchemyError
+from app.kafka_logger import get_kafka_logger
+import os
 
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.payment-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 router = APIRouter()
 
 @router.post("/payments/", response_model=PaymentResponse)

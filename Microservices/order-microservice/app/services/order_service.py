@@ -2,7 +2,6 @@ from sqlalchemy.orm import Session
 import httpx
 import os
 import json
-import logging
 from typing import Optional, Dict, Any
 from app.models.order import Order, OrderStatus
 from app.services.rest_proxy import RestProxyService
@@ -10,8 +9,11 @@ from app.schemas.schema_registry import SchemaRegistryService
 
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.db.database import get_db
+from app.kafka_logger import get_kafka_logger
 
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.order-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 class ProductService:
     def __init__(self):

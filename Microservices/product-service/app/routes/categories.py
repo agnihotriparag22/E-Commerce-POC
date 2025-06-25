@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
-import logging
 from app.db.database import get_db
 from app.models.product import Category
 from app.schemas.product import Category as CategorySchema, CategoryCreate, CategoryWithProducts
 from app.core.auth import verify_admin
+from app.kafka_logger import get_kafka_logger
+import os
 
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.product-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 router = APIRouter()
 
 # @router.get("/", response_model=List[CategorySchema])

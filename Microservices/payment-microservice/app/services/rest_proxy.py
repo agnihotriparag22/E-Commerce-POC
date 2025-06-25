@@ -1,12 +1,13 @@
 import os
 import requests
-import logging
 from dotenv import load_dotenv
+from app.kafka_logger import get_kafka_logger
 
-# Load environment variables
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.payment-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
+
 load_dotenv()
-
-logger = logging.getLogger(__name__)
 
 class RestProxyService:
     def __init__(self, topic: str = None):

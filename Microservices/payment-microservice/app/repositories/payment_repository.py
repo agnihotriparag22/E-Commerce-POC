@@ -2,12 +2,15 @@ from fastapi import Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from typing import List, Optional
-import logging
 import bcrypt
+import os
 from app.models.payment import Payment, PaymentStatus
 from app.services.rest_proxy import RestProxyService
+from app.kafka_logger import get_kafka_logger
 
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.payment-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 class PaymentRepository:
     def __init__(self, db: Session):

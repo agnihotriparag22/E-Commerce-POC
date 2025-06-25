@@ -7,9 +7,12 @@ from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate, OrderList
 from app.core.auth import get_current_user
 from app.core.auth import verify_token
 import httpx
-import logging
+import os
+from app.kafka_logger import get_kafka_logger
 
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.order-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 router = APIRouter(
     prefix="/api/v1",

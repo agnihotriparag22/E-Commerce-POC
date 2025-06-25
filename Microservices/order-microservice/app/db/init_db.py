@@ -1,9 +1,12 @@
 from app.db.database import Base, engine
 from app.models.order import Order
-import logging
+import os
+from dotenv import load_dotenv
+from app.kafka_logger import get_kafka_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.order-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 def init_db():
     try:

@@ -1,13 +1,15 @@
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from app.db.base import Base
-from app.models.payment import Payment  # Import here to ensure models are registered with Base
-import logging
+from app.models.payment import Payment  
 from sqlalchemy.exc import SQLAlchemyError
 import os
 from dotenv import load_dotenv
+from app.kafka_logger import get_kafka_logger
 
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.payment-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 load_dotenv()
 

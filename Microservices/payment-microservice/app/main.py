@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from app.routes.payment import router as payment_router
 from app.core.auth import get_current_user
 from app.kafka_logger import get_kafka_logger
+import os
 
 # Configure logging
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")

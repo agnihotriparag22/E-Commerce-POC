@@ -4,16 +4,20 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import List, Dict, Any
 import requests
-import logging
+import os
 
 from app.core.security import verify_password, create_access_token, get_current_active_user, get_current_user
 from app.db.database import get_db
 from app.models.user import User
 from app.schemas.user import Token, LoginSchema
+from app.kafka_logger import get_kafka_logger
+
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.user-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 router = APIRouter()
 
-logger = logging.getLogger(__name__)
 
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):

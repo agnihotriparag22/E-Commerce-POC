@@ -1,6 +1,10 @@
 import os
 import httpx
-import logging
+from app.kafka_logger import get_kafka_logger
+
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.user-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
 
@@ -17,10 +21,10 @@ class SchemaRegistryService:
             try:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
-                logging.info(f"Registered schema for subject {self.subject}")
+                logger.info(f"Registered schema for subject {self.subject}")
                 return response.json()
             except Exception as e:
-                logging.error(f"Failed to register schema: {e}")
+                logger.error(f"Failed to register schema: {e}")
                 raise
 
     async def get_latest_schema(self):
@@ -31,5 +35,5 @@ class SchemaRegistryService:
                 response.raise_for_status()
                 return response.json()
             except Exception as e:
-                logging.error(f"Failed to fetch latest schema: {e}")
+                logger.error(f"Failed to fetch latest schema: {e}")
                 raise 

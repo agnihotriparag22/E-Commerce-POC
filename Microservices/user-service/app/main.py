@@ -5,6 +5,7 @@ from app.routes import auth
 from app.db.database import engine
 from app.models import user
 from app.kafka_logger import get_kafka_logger
+import os
 
 # Create database tables
 user.Base.metadata.create_all(bind=engine)

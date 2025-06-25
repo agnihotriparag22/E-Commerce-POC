@@ -1,14 +1,17 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from typing import List, Optional, Tuple
-import logging
 from app.models.product import Product, Category
 from app.services.rest_proxy import RestProxyService
 from app.db.database import get_db
 from app.schemas.schema_registry import SchemaRegistryService
 import json
+import os
+from app.kafka_logger import get_kafka_logger
 
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.product-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 
 class ProductRepository:
