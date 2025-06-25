@@ -5,14 +5,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import order
 from app.db.database import engine, Base
-import logging
+from app.kafka_logger import get_kafka_logger
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.order-service'  
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -48,4 +46,4 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    logger.info("Shutting down Order Microservice") 
+    logger.info("Shutting down Order Microservice")

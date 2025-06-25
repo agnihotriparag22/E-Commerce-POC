@@ -4,21 +4,12 @@ from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from app.routes.payment import router as payment_router
 from app.core.auth import get_current_user
-import logging
-import sys
-from fastapi import status
+from app.kafka_logger import get_kafka_logger
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('payment_service.log')
-    ]
-)
-
-logger = logging.getLogger(__name__)
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.payment-service' 
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 app = FastAPI(title="Payment Microservice")
 
@@ -61,4 +52,4 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8003) 
+    uvicorn.run(app, host="0.0.0.0", port=8003)

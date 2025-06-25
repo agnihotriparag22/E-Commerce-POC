@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routes import products_router, categories_router
 from app.db.database import engine
 from app.models.product import Base
+from app.kafka_logger import get_kafka_logger
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -26,10 +27,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],  
+    allow_headers=["*"],  
     expose_headers=["*"]
 )
+
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.product-service' 
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 # Include routers
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
@@ -45,4 +50,4 @@ async def root():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8002) 
+    uvicorn.run(app, host="0.0.0.0", port=8002)
