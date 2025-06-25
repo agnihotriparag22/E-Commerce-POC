@@ -4,10 +4,20 @@ from app.db.base import Base
 from app.models.payment import Payment  # Import here to ensure models are registered with Base
 import logging
 from sqlalchemy.exc import SQLAlchemyError
+import os
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-DATABASE_URL = "mysql+pymysql://root:root@127.0.0.1:3306/payment_service_db"
+load_dotenv()
+
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST')
+DB_PORT = os.getenv('DB_PORT')
+DB_NAME = os.getenv('DB_NAME')
+
+DATABASE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 try:
     engine = create_engine(DATABASE_URL)
