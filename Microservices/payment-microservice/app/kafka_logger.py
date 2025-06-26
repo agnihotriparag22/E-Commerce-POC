@@ -1,9 +1,13 @@
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 from confluent_kafka import Producer
 import json
 
 class KafkaLoggingHandler(logging.Handler):
     def __init__(self, kafka_broker, kafka_topic):
+        if not kafka_broker:
+            raise ValueError("KAFKA_BOOTSTRAP_SERVERS is not set. Cannot connect to Kafka.")
         super().__init__()
         self.producer = Producer({'bootstrap.servers': kafka_broker})
         self.topic = kafka_topic
