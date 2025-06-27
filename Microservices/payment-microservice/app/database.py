@@ -41,12 +41,10 @@ def get_db():
     finally:
         db.close()
 
-# Drop and recreate all tables
+# Only create tables if they don't exist; do NOT drop them
 try:
-    Base.metadata.drop_all(bind=engine)  # Drop all tables
-    logger.info("Dropped all existing tables")
-    Base.metadata.create_all(bind=engine)  # Create tables with new schema
+    Base.metadata.create_all(bind=engine)  # Create tables with new schema if not exist
     logger.info("Database tables created successfully")
 except Exception as e:
-    logger.error(f"Error recreating database tables: {e}", exc_info=True)
+    logger.error(f"Error creating database tables: {e}", exc_info=True)
     raise 
