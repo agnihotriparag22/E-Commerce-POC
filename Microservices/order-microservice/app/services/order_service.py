@@ -57,50 +57,50 @@ class ProductService:
                 logger.debug(f"Stock update response for product {product_id}: status={response.status_code}, body={response.text}")
                 if response.status_code != 200:
                     logger.error(f"Failed to update stock for product {product_id}: {response.text}")
-                    raise Exception("Failed to update stock")
+                    raise Exception(f"Failed to update stock: {response.text}")
             except Exception as e:
-                logger.error(f"Error updating stock for product {product_id}: {e}")
-                raise
+                logger.error(f"Error updating stock for product {product_id}", exc_info=True)
+                raise Exception(f"Error updating stock for product {product_id}: {e}") from e
 
 class PaymentService:
     def __init__(self):
         self.base_url = os.getenv("PAYMENT_SERVICE_URL", "http://localhost:8003")
         self.rest_proxy = RestProxyService()
-        self.schema_registry = SchemaRegistryService( subject = "payment-events-value")
-        payment_event_schema = {
-                    "type": "record",
-                    "name": "PaymentEvent",
-                    "fields": [
-                        {"name": "event", "type": "string"},
-                        {"name": "order_id", "type": "int"},
-                        {"name": "amount", "type": "double"},
-                        {
-                            "name": "payment_info",
-                            "type": {
-                                "type": "record",
-                                "name": "PaymentInfo",
-                                "fields": [
-                                    {"name": "card_holder_name", "type": ["null", "string"], "default": None},
-                                    {"name": "card_number_masked", "type": ["null", "string"], "default": None},  # Only last 4 digits
-                                    {"name": "expiry_date", "type": ["null", "string"], "default": None},
-                                    {"name": "cvv", "type": "string", "default": None}
-                                ]
-                            }
-                        },
-                        {"name": "payment_id", "type": ["null", "string"], "default": None},
-                        {"name": "status", "type": ["null", "string"], "default": None}
-                    ]
-                }
-        
-        schema_json = json.dumps(payment_event_schema)
-        result = self.schema_registry.register_schema(schema_json)
-        
+        self.schema_registry = SchemaRegistryService(subject="payment-events-value")
+        self.payment_event_schema = {
+            "type": "record",
+            "name": "PaymentEvent",
+            "fields": [
+                {"name": "event", "type": "string"},
+                {"name": "order_id", "type": "int"},
+                {"name": "amount", "type": "double"},
+                {
+                    "name": "payment_info",
+                    "type": {
+                        "type": "record",
+                        "name": "PaymentInfo",
+                        "fields": [
+                            {"name": "card_holder_name", "type": ["null", "string"], "default": None},
+                            {"name": "card_number_masked", "type": ["null", "string"], "default": None},
+                            {"name": "expiry_date", "type": ["null", "string"], "default": None},
+                            {"name": "cvv", "type": "string", "default": None}
+                        ]
+                    }
+                },
+                {"name": "payment_id", "type": ["null", "string"], "default": None},
+                {"name": "status", "type": ["null", "string"], "default": None}
+            ]
+        }
+
+    async def async_init(self):
+        schema_json = json.dumps(self.payment_event_schema)
+        result = await self.schema_registry.register_schema(schema_json)
         logger.info(f"Payment Schema registered successfully: {result}")
         
 
     async def create_payment(self, order_id: int, amount: float, payment_info: Dict[str, Any], auth_token: str) -> Dict[str, Any]:
         logger.debug(f"Creating payment for order {order_id} with amount {amount}")
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:  
             try:
                 headers = {"Authorization": f"Bearer {auth_token}"} if auth_token else {}
                 response = await client.post(
@@ -116,27 +116,19 @@ class PaymentService:
                     headers=headers
                 )
                 logger.debug(f"Payment Service response for order {order_id}: status={response.status_code}, body={response.text}")
-                if response.status_code == 200 or response.status_code == 201:
-                    
-                    # Rest proxy implementation for payment creation
-                    # await self.rest_proxy.send_event({
-                    #         "event": "payment_initiated",
-                    #         "order_id": order_id,
-                    #         "amount": amount,
-                    #         "payment_info": payment_info,
-                    #         # "card_number": payment_info.card_number,
-                    #         # "card_holder_name": payment_info.card_holder_name,
-                    #         # "expiry_date": payment_info.expiry_date,
-                    #         # "cvv": payment_info.cvv
-                    #     }, auth_token=auth_token)
-                    
+                if response.status_code == 200:
+                    await self.rest_proxy.send_event({
+                        "event": "payment_initiated",
+                        "order_id": order_id,
+                        "amount": amount,
+                        "payment_info": payment_info,
+                    }, auth_token=auth_token)
                     return response.json()
-                    
                 logger.error(f"Payment creation failed: {response.text}")
-                raise Exception("Payment creation failed")
+                raise Exception(f"Payment creation failed: {response.text}")
             except Exception as e:
-                logger.error(f"Error creating payment: {e}")
-                raise
+                logger.error("Error creating payment", exc_info=True)
+                raise Exception(f"Error creating payment: {e}") from e
 
     async def verify_payment(self, payment_id: int, auth_token: str) -> bool:
         logger.debug(f"Verifying payment {payment_id}")
@@ -176,18 +168,15 @@ class PaymentService:
                 logger.debug(f"Update payment order_id response: status={response.status_code}, body={response.text}")
                 if response.status_code != 200:
                     logger.error(f"Failed to update payment {payment_id} with order {order_id}: {response.text}")
-                    raise Exception("Failed to update payment")
-                
-                # Rest proxy implementation for payment update with order_id
+                    raise Exception(f"Failed to update payment: {response.text}")
                 await self.rest_proxy.send_event({
                     "event": "payment_updated",
                     "payment_id": payment_id,
                     "order_id": order_id
                 }, auth_token=auth_token)
-                
             except Exception as e:
-                logger.error(f"Error updating payment {payment_id} with order {order_id}: {e}")
-                raise
+                logger.error("Error updating payment with order_id", exc_info=True)
+                raise Exception(f"Error updating payment with order_id: {e}") from e
 
 class OrderService:
     def __init__(self, db: Session):
@@ -196,21 +185,22 @@ class OrderService:
         self.payment_service = PaymentService()
         self.rest_proxy = RestProxyService()
         self.schema_registry = SchemaRegistryService(subject="order-events-value")
-        order_event_schema = {
-                    "type": "record",
-                    "name": "OrderEvent",
-                    "fields": [
-                        {"name": "event", "type": "string"},
-                        {"name": "order_id", "type": "int"},
-                        {"name": "user_id", "type": "int"},
-                        {"name": "product_id", "type": "int"},
-                        {"name": "quantity", "type": "int"},
-                        {"name": "status", "type": "string"}
-                    ]
-                }
-        schema_json = json.dumps(order_event_schema)
-        result = self.schema_registry.register_schema(schema_json)
-        
+        self.order_event_schema = {
+            "type": "record",
+            "name": "OrderEvent",
+            "fields": [
+                {"name": "event", "type": "string"},
+                {"name": "order_id", "type": "int"},
+                {"name": "user_id", "type": "int"},
+                {"name": "product_id", "type": "int"},
+                {"name": "quantity", "type": "int"},
+                {"name": "status", "type": "string"}
+            ]
+        }
+
+    async def async_init(self):
+        schema_json = json.dumps(self.order_event_schema)
+        result = await self.schema_registry.register_schema(schema_json)
         logger.info(f"Order Schema registered successfully: {result}")
 
     async def create_order(self, order_data: OrderCreate, auth_token: str) -> Order:

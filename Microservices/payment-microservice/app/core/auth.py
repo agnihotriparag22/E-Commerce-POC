@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordBearer
 import requests
 from app.kafka_logger import get_kafka_logger
 import os
+from dotenv import load_dotenv
 
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 KAFKA_TOPIC = 'logs.payment-service'  
