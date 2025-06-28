@@ -116,7 +116,7 @@ class PaymentService:
                     headers=headers
                 )
                 logger.debug(f"Payment Service response for order {order_id}: status={response.status_code}, body={response.text}")
-                if response.status_code == 200:
+                if response.status_code == 200 or response.status_code == 201:
                     
                     # Rest proxy implementation for payment creation
                     # await self.rest_proxy.send_event({

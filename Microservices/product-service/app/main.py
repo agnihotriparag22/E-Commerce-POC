@@ -7,6 +7,8 @@ from app.kafka_logger import get_kafka_logger
 import os
 from dotenv import load_dotenv
 
+load_dotenv()
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 

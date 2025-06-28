@@ -27,6 +27,11 @@ class OrderResponse(OrderBase):
 
     class Config:
         from_attributes = True
+        
+class OrdersSummaryResponse(BaseModel):
+    total_orders: int
+    total_customers: int
+    unique_customers: int
 
 class OrderList(BaseModel):
     orders: list[OrderResponse]

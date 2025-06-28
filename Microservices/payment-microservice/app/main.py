@@ -6,6 +6,9 @@ from app.routes.payment import router as payment_router
 from app.core.auth import get_current_user
 from app.kafka_logger import get_kafka_logger
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configure logging
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")

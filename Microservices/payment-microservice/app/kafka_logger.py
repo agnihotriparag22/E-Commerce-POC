@@ -1,6 +1,13 @@
 import logging
 from confluent_kafka import Producer
 import json
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+KAFKA_TOPIC = 'logs.payment-service' 
 
 class KafkaLoggingHandler(logging.Handler):
     def __init__(self, kafka_broker, kafka_topic):

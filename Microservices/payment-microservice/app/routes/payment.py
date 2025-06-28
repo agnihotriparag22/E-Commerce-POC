@@ -6,6 +6,7 @@ from app.repositories.payment_repository import PaymentRepository, get_payment_r
 from sqlalchemy.exc import SQLAlchemyError
 from app.kafka_logger import get_kafka_logger
 import os
+from app.models.payment import PaymentStatus
 
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 KAFKA_TOPIC = 'logs.payment-service'  
@@ -68,6 +69,35 @@ async def get_all_payments(
     except Exception as e:
         logger.error(f"Unexpected error fetching payments: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/payments/successful")
+async def get_total_successful_payments(
+    payment_repo: PaymentRepository = Depends(get_payment_repository),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get the total amount of all payments with status 'successful' from the payment microservice.
+    """
+    # Only admin should be able to access this endpoint (add admin check if needed)
+    try:
+        payments = payment_repo.get_all_payments()
+       
+        total = sum(
+            payment.amount
+            for payment in payments
+            if (
+                (hasattr(payment.status, "value") and payment.status == PaymentStatus.SUCCESSFUL)
+                or (str(payment.status).lower() == PaymentStatus.SUCCESSFUL.value)
+            )
+        )
+        print("total", total)
+        return {"total_successful_payments": total}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching successful payments: {str(e)}"
+        )
 
 @router.get("/payments/{payment_id}", response_model=PaymentResponse)
 async def get_payment(
