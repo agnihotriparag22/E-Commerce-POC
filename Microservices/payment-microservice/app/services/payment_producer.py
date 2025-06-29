@@ -7,7 +7,7 @@ from app.kafka_logger import get_kafka_logger
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 logger = get_kafka_logger(__name__, KAFKA_BROKER, "logs.payment-service")
 
-class PaymentProducer:
+class PaymentProducer: 
     def __init__(self):
         self.rest_proxy = RestProxyService()
         
