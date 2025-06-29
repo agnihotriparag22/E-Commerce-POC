@@ -1,10 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import products_router, categories_router
-from app.db.database import engine
+from app.db.database import engine, SessionLocal
 from app.models.product import Base
 from app.kafka_logger import get_kafka_logger
+from app.services.product_consumer import ProductConsumer
 import os
+import asyncio
 from dotenv import load_dotenv
 
 # Create database tables
@@ -49,6 +51,13 @@ async def root():
         "docs_url": "/docs",
         "redoc_url": "/redoc"
     }
+
+@app.on_event("startup")
+async def start_product_consumer():
+    db = SessionLocal()
+    consumer = ProductConsumer(db)
+    loop = asyncio.get_event_loop()
+    loop.create_task(consumer.start())
 
 if __name__ == "__main__":
     import uvicorn

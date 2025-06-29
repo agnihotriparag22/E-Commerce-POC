@@ -39,11 +39,14 @@ class ProductRepository:
             ]
         }
         schema_json = json.dumps(product_event_schema)
-        
-        result = self.schema_registry.register_schema(schema_json)
+        # Async registration must be called outside __init__
+        self._schema_json = schema_json
+        self._schema_registered = False
 
-        logger.info(f"Product Schema registered successfully: {result}")
-        
+    async def async_register_schema(self):
+        if not self._schema_registered:
+            await self.schema_registry.register_schema(self._schema_json)
+            self._schema_registered = True
 
     def get_products_paginated(
         self,
@@ -98,7 +101,7 @@ class ProductRepository:
         logger.debug(f"Repository: Fetching category with id={category_id}")
         return self.db.query(Category).filter(Category.id == category_id).first()
 
-    def create_product(self, product_data: dict) -> Product:
+    async def create_product(self, product_data: dict) -> Product:
         """Create a new product"""
         logger.debug(f"Repository: Creating product with data={product_data}")
         db_product = Product(**product_data)
@@ -106,17 +109,17 @@ class ProductRepository:
         self.db.commit()
         
         # Rest Proxy implementation for product creation
-        self.rest_proxy.send_event({
+        await self.rest_proxy.send_event({
             "event": "product-created",
             "product_id": db_product.id,
             "product_data": product_data
-        })
+        }, topic="product-events")
         
         self.db.refresh(db_product)
         logger.debug(f"Repository: Product created with id={db_product.id}")
         return db_product
 
-    def update_product(self, product_id: int, update_data: dict) -> Optional[Product]:
+    async def update_product(self, product_id: int, update_data: dict) -> Optional[Product]:
         """Update an existing product"""
         logger.debug(
             f"Repository: Updating product id={product_id} with data={update_data}"
@@ -137,17 +140,17 @@ class ProductRepository:
         self.db.commit()
         
         # Rest Proxy implementation for product update
-        self.rest_proxy.send_event({
+        await self.rest_proxy.send_event({
             "event": "product-updated",
             "product_id": db_product.id,
             "updated_data": update_data
-        })
+        }, topic="product-events")
         
         self.db.refresh(db_product)
         logger.debug(f"Repository: Product id={product_id} updated successfully")
         return db_product
 
-    def delete_product(self, product_id: int) -> bool:
+    async def delete_product(self, product_id: int) -> bool:
         """Delete a product by ID"""
         logger.debug(f"Repository: Deleting product with id={product_id}")
         db_product = self.db.query(Product).filter(Product.id == product_id).first()
@@ -162,15 +165,15 @@ class ProductRepository:
         self.db.commit()
         
         # Rest Proxy implementation for product deletion
-        self.rest_proxy.send_event({
+        await self.rest_proxy.send_event({
             "event": "product-deleted",
             "product_id": product_id
-        })
+        }, topic="product-events")
         
         logger.debug(f"Repository: Product id={product_id} deleted successfully")
         return True
 
-    def decrease_product_stock(
+    async def decrease_product_stock(
         self, product_id: int, quantity: int
     ) -> Tuple[Optional[Product], str]:
         """
@@ -198,17 +201,17 @@ class ProductRepository:
         self.db.commit()
         
         # Rest Proxy implementation for stock decrease
-        self.rest_proxy.send_event({
+        await self.rest_proxy.send_event({
             "event": "product-stock-decreased",
             "product_id": product.id,
             "quantity": quantity,
             "new_stock": product.stock
-        })
+        }, topic="product-events")
         if product.stock == 0:
-            self.rest_proxy.send_event({
+            await self.rest_proxy.send_event({
                 "event": "product-out-of-stock",
                 "product_id": product.id
-            })
+            }, topic="product-events")
             logger.debug(f"Repository: Product id={product_id} is now out of stock")
             
         self.db.refresh(product)
@@ -217,7 +220,7 @@ class ProductRepository:
         )
         return product, ""
 
-    def increase_product_stock(
+    async def increase_product_stock(
         self, product_id: int, quantity: int
     ) -> Optional[Product]:
         """Increase product stock"""
@@ -236,17 +239,17 @@ class ProductRepository:
         self.db.commit()
         
         # Rest Proxy implementation for stock increase
-        self.rest_proxy.send_event({
+        await self.rest_proxy.send_event({
             "event": "product-stock-increased",
             "product_id": product.id,
             "quantity": quantity,
             "new_stock": product.stock
-        })
+        }, topic="product-events")
         if product.stock > 0:
-            self.rest_proxy.send_event({
+            await self.rest_proxy.send_event({
                 "event": "product-in-stock",
                 "product_id": product.id
-            })
+            }, topic="product-events")
             logger.debug(f"Repository: Product id={product_id} is now in stock")
             
         self.db.refresh(product)

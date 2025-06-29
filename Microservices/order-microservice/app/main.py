@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.routers import order
 from app.db.database import engine, Base
 from app.kafka_logger import get_kafka_logger
+from app.services.order_consumer import OrderConsumer
+from app.db.database import SessionLocal
+import asyncio
 import os
 
 # Configure logging
@@ -44,6 +47,10 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Starting up Order Microservice")
+    db = SessionLocal()
+    consumer = OrderConsumer(db)
+    loop = asyncio.get_event_loop()
+    loop.create_task(consumer.start())
 
 @app.on_event("shutdown")
 async def shutdown_event():

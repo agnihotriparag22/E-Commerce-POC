@@ -23,9 +23,20 @@ class KafkaLoggingHandler(logging.Handler):
 def get_kafka_logger(name, kafka_broker, kafka_topic):
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
-    handler = KafkaLoggingHandler(kafka_broker, kafka_topic)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-    handler.setFormatter(formatter)
-    if not logger.handlers:
+    
+    handler_exists = any(
+        isinstance(h, KafkaLoggingHandler) and getattr(h, 'topic', None) == kafka_topic
+        for h in logger.handlers
+    )
+    if not handler_exists:
+        handler = KafkaLoggingHandler(kafka_broker, kafka_topic)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+        handler.setFormatter(formatter)
         logger.addHandler(handler)
+
+    
+    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s'))
+        logger.addHandler(stream_handler)
     return logger

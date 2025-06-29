@@ -1,9 +1,13 @@
+from dotenv import load_dotenv
+load_dotenv()
 import logging
 from confluent_kafka import Producer
 import json
 
 class KafkaLoggingHandler(logging.Handler):
     def __init__(self, kafka_broker, kafka_topic):
+        if not kafka_broker:
+            raise ValueError("KAFKA_BOOTSTRAP_SERVERS is not set. Cannot connect to Kafka.")
         super().__init__()
         self.producer = Producer({'bootstrap.servers': kafka_broker})
         self.topic = kafka_topic
@@ -19,9 +23,20 @@ class KafkaLoggingHandler(logging.Handler):
 def get_kafka_logger(name, kafka_broker, kafka_topic):
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)
-    handler = KafkaLoggingHandler(kafka_broker, kafka_topic)
-    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-    handler.setFormatter(formatter)
-    if not logger.handlers:
+    
+    handler_exists = any(
+        isinstance(h, KafkaLoggingHandler) and getattr(h, 'topic', None) == kafka_topic
+        for h in logger.handlers
+    )
+    if not handler_exists:
+        handler = KafkaLoggingHandler(kafka_broker, kafka_topic)
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+        handler.setFormatter(formatter)
         logger.addHandler(handler)
+
+    
+    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s'))
+        logger.addHandler(stream_handler)
     return logger

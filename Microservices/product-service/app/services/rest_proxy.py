@@ -28,29 +28,25 @@ class RestProxyService:
        
         logger.info(f"RestProxyService initialized with URL: {self.base_url}, Topic: {self.topic}")
 
-    def send_event(self, value: dict, key: str = None, auth_token: str = None):
-        """Synchronous version of send_event"""
+    async def send_event(self, value: dict, key: str = None, auth_token: str = None, topic: str = None):
         headers = {"Content-Type": "application/vnd.kafka.json.v2+json"}
-       
-        # Add authorization header if token is provided
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
-       
         payload = {
             "records": [
                 {"value": value} if not key else {"key": key, "value": value}
             ]
         }
-       
-        url = f"{self.base_url}/topics/{self.topic}"
+        use_topic = topic or self.topic
+        url = f"{self.base_url}/topics/{use_topic}"
         logger.debug(f"Sending event to URL: {url}")
         logger.debug(f"Payload: {payload}")
-       
-        with httpx.Client() as client:
+        import httpx
+        async with httpx.AsyncClient() as client:
             try:
-                response = client.post(url, json=payload, headers=headers)
+                response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
-                logger.info(f"Successfully sent event to Kafka REST Proxy: {value}")
+                logger.info(f"Successfully sent event to Kafka REST Proxy: {value} (topic: {use_topic})")
                 return response.json()
             except httpx.RequestError as e:
                 logger.error(f"Request error sending event to Kafka REST Proxy: {e}")

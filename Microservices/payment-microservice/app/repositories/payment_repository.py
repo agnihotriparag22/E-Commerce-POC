@@ -32,7 +32,7 @@ class PaymentRepository:
         
         return payment
 
-    def create_payment(self, payment_info: dict) -> Payment:
+    async def create_payment(self, payment_info: dict) -> Payment:
         """Create a new payment with hashed CVV"""
         logger.debug(f"Repository: Creating payment for order {payment_info.get('order_id')}")
         
@@ -55,12 +55,12 @@ class PaymentRepository:
         
         self.db.add(db_payment)
         self.db.commit()
-        self.rest_proxy.send_event({
+        await self.rest_proxy.send_event({
             "event": "payment_created",
             "order_id": db_payment.order_id,
             "amount": db_payment.amount,
             "payment_info": payment_info,
-        })
+        }, topic="payment-events")
         self.db.refresh(db_payment)
         
         logger.debug(f"Repository: Payment created successfully with ID {db_payment.id}")
