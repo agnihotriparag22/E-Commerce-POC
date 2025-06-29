@@ -9,6 +9,9 @@ from app.services.payment_consumer import PaymentConsumer
 from app.database import SessionLocal
 import os
 import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Configure logging
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")

@@ -40,11 +40,11 @@ def get_db():
         raise
     finally:
         db.close()
- 
+
 # Only create tables if they don't exist; do NOT drop them
 try:
     Base.metadata.create_all(bind=engine)  # Create tables with new schema if not exist
     logger.info("Database tables created successfully")
 except Exception as e:
     logger.error(f"Error creating database tables: {e}", exc_info=True)
-    raise
+    raise 

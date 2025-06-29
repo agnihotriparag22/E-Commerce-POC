@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db.database import get_db
 from app.services.order_service import OrderService
-from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate, OrderList, OrderWithTotal
+from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate, OrderList, OrderWithTotal, OrdersSummaryResponse
 from app.core.auth import get_current_user
 from app.core.auth import verify_token
 import httpx
@@ -18,6 +18,38 @@ router = APIRouter(
     prefix="/api/v1",
     tags=["orders"]
 )
+
+@router.get("/orders")
+async def get_orders(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    order_service = OrderService(db)
+    orders = order_service.get_all_orders()
+    return orders
+
+@router.get("/orders/summary", response_model=OrdersSummaryResponse)
+async def get_orders_summary(
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Get summary statistics: total number of orders, total customers, and unique customers.
+    """
+    
+    order_service = OrderService(db)
+    
+    orders = order_service.get_all_orders()
+  
+    total_orders = len(orders)
+    user_ids = [order.user_id for order in orders]
+    unique_customers = len(set(user_ids))
+
+    return {
+    "total_orders": total_orders,
+    "total_customers": len(user_ids),
+    "unique_customers": unique_customers
+    }
 
 @router.post("/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)
 async def create_order(
@@ -92,69 +124,7 @@ async def get_user_orders(
     orders = order_service.get_orders_by_user(user_id)
     return OrderList(orders=orders, total=len(orders))
 
-@router.get("/orders", response_model=List[OrderWithTotal])
-async def get_all_orders(
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """
-    Get all orders with payment totals (admin only).
-    """
-    # Todo: Add admin role check
-    order_service = OrderService(db)
-    orders = order_service.get_all_orders()
-    
-    # Fetch payment data for each order
-    orders_with_totals = []
-    
-    async with httpx.AsyncClient() as client:
-        for order in orders:
-            try:
-                # Call payment microservice to get payments for this order
-                payment_response = await client.get(
-                    f"http://payment-service/payments/order/{order.id}",
-                    headers={"Authorization": f"Bearer {current_user['token']}"}
-                )
-                
-                total = 0
-                if payment_response.status_code == 200:
-                    payments = payment_response.json()
-                    # Sum successful payments for this order
-                    total = sum(
-                        payment.get('amount', 0) 
-                        for payment in payments 
-                        if payment.get('status') == 'SUCCESSFUL'
-                    )
-                
-                # Create order with total
-                order_dict = {
-                    "id": order.id,
-                    "user_id": order.user_id,
-                    "product_id": order.product_id,
-                    "quantity": order.quantity,
-                    "status": order.status,
-                    "created_at": order.created_at,
-                    "updated_at": order.updated_at,
-                    "total": total
-                }
-                orders_with_totals.append(order_dict)
-                
-            except Exception as e:
-                logger.error(f"Error fetching payments for order {order.id}: {e}")
-                # Add order with 0 total if payment fetch fails
-                order_dict = {
-                    "id": order.id,
-                    "user_id": order.user_id,
-                    "product_id": order.product_id,
-                    "quantity": order.quantity,
-                    "status": order.status,
-                    "created_at": order.created_at,
-                    "updated_at": order.updated_at,
-                    "total": 0
-                }
-                orders_with_totals.append(order_dict)
-    
-    return orders_with_totals
+
 
 @router.post("/orders/{order_id}/complete", response_model=OrderResponse)
 async def complete_order(

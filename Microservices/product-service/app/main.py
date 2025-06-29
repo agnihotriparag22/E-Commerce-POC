@@ -9,6 +9,8 @@ import os
 import asyncio
 from dotenv import load_dotenv
 
+load_dotenv()
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
