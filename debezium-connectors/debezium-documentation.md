@@ -47,6 +47,34 @@ FLUSH PRIVILEGES;
 2. **Configure the Debezium connector** to use this user's credentials.
 3. **Deploy the connector** using Kafka Connect REST API or configuration files.
 
+> **Additional MySQL Configuration Required for Debezium:**
+>
+ To enable Debezium to capture changes, ensure the following MySQL server settings are configured:
+>
+ - `log_bin` must be **ON** (enables binary logging).
+ - `binlog_format` must be set to **ROW** (captures row-level changes).
+ - `server_id` must be set (e.g., `server_id=1` for a single instance; must be unique in a cluster).
+
+> Example configuration in your MySQL config file (`my.cnf` or `my.ini`):
+
+```ini
+ [mysqld]
+ log_bin = ON
+ binlog_format = ROW
+ server_id = 1
+ ```
+>
+> After updating these settings, restart your MySQL server for the changes to take effect.
+
+If you are using Amazon RDS, you can configure these settings by creating a custom parameter group:
+
+1. In the AWS RDS Console, go to **Parameter groups** and create a new parameter group for your MySQL instance.
+2. Set the following parameters in the custom group:
+   - `binlog_format` = `ROW`
+   - `log_bin` = `ON`
+   - `server_id` = (set a unique integer, e.g., `1`)
+3. Apply the custom parameter group to your RDS instance and reboot the instance for the changes to take effect.
+
 > **Note:** The exact privileges and commands may vary depending on your database (PostgreSQL, MongoDB, etc.).
 
 ## How to Write a Debezium Connector Config File
