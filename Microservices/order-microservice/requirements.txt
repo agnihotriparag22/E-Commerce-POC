@@ -42,3 +42,4 @@ tomli==2.2.1
 typing_extensions==4.14.0
 urllib3==2.4.0
 uvicorn==0.24.0
+aiokafka==0.12.0

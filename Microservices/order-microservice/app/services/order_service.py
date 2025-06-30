@@ -325,7 +325,10 @@ class OrderService:
         """Return a single order by order_id."""
         return self.db.query(Order).filter(Order.id == order_id).first()
 
-    
+    def get_all_orders(self) -> list[Order]:
+        logger.debug("Fetching all orders from database")
+        return self.db.query(Order).all()
+        
     async def handle_payment_completed_event(self, event: dict):
         logger.debug(f"Session id: {id(self.db)}")
         all_orders = self.db.query(Order).all()
