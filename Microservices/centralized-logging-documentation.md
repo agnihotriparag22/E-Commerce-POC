@@ -4,6 +4,7 @@
 - [What is Centralized Logging?](#what-is-centralized-logging)
 - [Why Do We Do Centralized Logging?](#why-do-we-do-centralized-logging)
 - [Benefits of Centralized Logging in Microservice Architecture](#benefits-of-centralized-logging-in-microservice-architecture)
+- [Kafka Topic Strategy for Logging](#kafka-topic-strategy-for-logging)
 - [Centralized Logging Implementation in This Project](#centralized-logging-implementation-in-this-project)
 
 ---
@@ -24,34 +25,107 @@ Centralized logging is the practice of aggregating logs from multiple sources (a
 - **Reduced Operational Overhead:** No need to SSH into individual servers or containers to access logs.
 - **Advanced Analytics:** Centralized systems often support querying, visualization, and alerting, enabling deeper insights into system behavior and performance.
 
+## Kafka Topic Strategy for Logging
+When designing centralized logging with Kafka, you must decide whether to use a **single topic for all microservices** or **one topic per microservice**. Each approach has its own trade-offs:
+
+### Single Topic for All Microservices
+**Pros:**
+- **Simplicity:** Easier to manage and configure, especially for small to medium-sized systems.
+- **Unified Log Stream:** All logs are in one place, making it easy to search and correlate events across services.
+- **Lower Overhead:** Fewer topics to manage in Kafka.
+
+**Cons:**
+- **Potential for High Volume:** Large systems may generate a high volume of logs, making the topic harder to manage and scale.
+- **Filtering Required:** Consumers must filter logs by service, which may add processing overhead.
+- **Retention Policies:** Uniform retention and partitioning may not suit all services.
+
+### One Topic per Microservice
+**Pros:**
+- **Isolation:** Each service's logs are separated, making it easier to manage, scale, and apply service-specific retention policies.
+- **Fine-Grained Control:** You can tune partitions, retention, and access control per service.
+- **Easier Scaling:** High-volume services can have more partitions or different configurations.
+
+**Cons:**
+- **Increased Complexity:** More topics to manage and monitor.
+- **Cross-Service Correlation:** Requires aggregating logs from multiple topics for end-to-end tracing.
+
+### Which to Choose?
+- For **smaller systems** or when you want a quick, unified view, a single topic is often sufficient.
+- For **larger systems** or when services have very different logging needs, one topic per microservice is recommended.
+- You can also use a hybrid approach: a single topic for most logs, and dedicated topics for high-volume or sensitive services.
+
 ## Centralized Logging Implementation in This Project
-In this E-Commerce-POC, centralized logging is implemented using a custom `kafka_logger` module in all four microservices:
+In this E-Commerce-POC, centralized logging is implemented using a custom **kafka_logger utility** (not a module) included in every microservice:
 - Order Microservice
 - Payment Microservice
 - Product Microservice
 - User Service
 
 ### How It Works
-- Each microservice imports and uses the `kafka_logger` module.
-- Application logs (info, error, debug, etc.) are sent as messages to a Kafka topic dedicated for logs.
-- A centralized log consumer (not shown here, but can be implemented) can subscribe to this Kafka topic to aggregate, store, and analyze logs (e.g., using ELK stack, Grafana Loki, or custom dashboards).
+- Each microservice includes the `kafka_logger.py` utility.
+- The logger is initialized in the application as follows:
+  ```python
+  logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
+  ```
+- Application code then uses standard logging methods:
+  ```python
+  logger.info('Order created successfully', extra={"order_id": 123})
+  logger.error('Payment failed', extra={"order_id": 123, "reason": "Insufficient funds"})
+  ```
+- The utility sends log messages to the configured Kafka topic, which can be a single topic for all services or a dedicated topic per service, depending on your chosen strategy.
 
-### Example Usage
-In each microservice, you will find a file like `kafka_logger.py` (e.g., `Microservices/order-microservice/app/kafka_logger.py`). This module is responsible for producing log messages to Kafka.
+### kafka_logger Utility Code
+Below is the code for the `kafka_logger.py` utility used in each microservice:
 
-**Sample log sending code:**
 ```python
-from kafka_logger import log_info, log_error
+import logging
+from confluent_kafka import Producer
+import json
 
-log_info('Order created successfully', extra={"order_id": 123})
-log_error('Payment failed', extra={"order_id": 123, "reason": "Insufficient funds"})
+class KafkaLoggingHandler(logging.Handler):
+    def __init__(self, kafka_broker, kafka_topic):
+        super().__init__()
+        self.producer = Producer({'bootstrap.servers': kafka_broker})
+        self.topic = kafka_topic
+
+    def emit(self, record):
+        try:
+            log_entry = self.format(record)
+            self.producer.produce(self.topic, log_entry.encode('utf-8'))
+            self.producer.flush()
+        except Exception as e:
+            print(f"Failed to send log to Kafka: {e}")
+
+def get_kafka_logger(name, kafka_broker, kafka_topic):
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+    handler = KafkaLoggingHandler(kafka_broker, kafka_topic)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+    handler.setFormatter(formatter)
+    if not logger.handlers:
+        logger.addHandler(handler)
+    return logger
+```
+
+### Example Usage in a Microservice
+```python
+from kafka_logger import get_kafka_logger
+
+KAFKA_BROKER = 'localhost:9092'  # or your Kafka broker address
+KAFKA_TOPIC = 'central-logs'     # or a service-specific topic
+
+logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
+
+logger.info('Order created successfully', extra={"order_id": 123})
+logger.error('Payment failed', extra={"order_id": 123, "reason": "Insufficient funds"})
 ```
 
 ### Benefits in This Project
-- **Consistent Logging:** All services use the same logging mechanism and format.
+- **Consistent Logging:** All services use the same logging utility and format.
 - **Real-Time Log Aggregation:** Logs are available in real time for monitoring and alerting.
 - **Easier Debugging:** Developers and operators can trace issues across services using centralized logs.
 - **Extensible:** The logging pipeline can be extended to integrate with log storage, visualization, and alerting tools.
+- **Flexible Topic Strategy:** You can choose between a single topic or multiple topics for log aggregation, depending on your needs.
 
 ---
 
