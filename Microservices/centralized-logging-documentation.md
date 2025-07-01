@@ -26,28 +26,23 @@ Centralized logging is the practice of aggregating logs from multiple sources (a
 - **Advanced Analytics:** Centralized systems often support querying, visualization, and alerting, enabling deeper insights into system behavior and performance.
 
 ## Kafka Topic Strategy for Logging
-When designing centralized logging with Kafka, you must decide whether to use a **single topic for all microservices** or **one topic per microservice**. Each approach has its own trade-offs:
 
-### Single Topic for All Microservices
-**Pros:**
-- **Simplicity:** Easier to manage and configure, especially for small to medium-sized systems.
-- **Unified Log Stream:** All logs are in one place, making it easy to search and correlate events across services.
-- **Lower Overhead:** Fewer topics to manage in Kafka.
+When designing centralized logging with Kafka, you must decide between using a **Single Topic for All Microservices** or **One Topic per Microservice**. The table below compares the two approaches:
 
-**Cons:**
-- **Potential for High Volume:** Large systems may generate a high volume of logs, making the topic harder to manage and scale.
-- **Filtering Required:** Consumers must filter logs by service, which may add processing overhead.
-- **Retention Policies:** Uniform retention and partitioning may not suit all services.
+| Aspect                        | Single Topic for All Microservices                                                                 | One Topic per Microservice                                                                                 |
+|-------------------------------|---------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| **Simplicity**                | Easier to manage and configure, especially for small to medium-sized systems                      | More topics to manage and monitor, increasing operational complexity                                       |
+| **Log Stream**                | Unified log stream; all logs are in one place, making it easy to search and correlate events      | Logs are isolated per service, requiring aggregation for cross-service analysis                            |
+| **Overhead**                  | Lower overhead; fewer topics to manage in Kafka                                                   | Higher overhead; each service requires its own topic                                                       |
+| **Scalability**               | May become difficult to scale with high log volume from many services                             | Easier to scale; high-volume services can have more partitions or custom configurations                    |
+| **Filtering**                 | Consumers must filter logs by service, adding processing overhead                                 | No filtering needed; each topic contains only its service's logs                                           |
+| **Retention Policies**        | Uniform retention and partitioning for all services, which may not suit every use case            | Fine-grained control; can set retention, partitions, and access control per service                        |
+| **Isolation**                 | Logs from all services are mixed together                                                         | Each service's logs are separated, improving manageability and security                                    |
+| **Cross-Service Correlation** | Easy, since all logs are in one topic                                                             | Requires aggregating logs from multiple topics for end-to-end tracing                                      |
 
-### One Topic per Microservice
-**Pros:**
-- **Isolation:** Each service's logs are separated, making it easier to manage, scale, and apply service-specific retention policies.
-- **Fine-Grained Control:** You can tune partitions, retention, and access control per service.
-- **Easier Scaling:** High-volume services can have more partitions or different configurations.
-
-**Cons:**
-- **Increased Complexity:** More topics to manage and monitor.
-- **Cross-Service Correlation:** Requires aggregating logs from multiple topics for end-to-end tracing.
+**Summary:**  
+- Use a **single topic** for simplicity and unified view in smaller systems.
+- Use **one topic per microservice** for better isolation, scalability, and control in larger or more complex systems.
 
 ### Which to Choose?
 - For **smaller systems** or when you want a quick, unified view, a single topic is often sufficient.
