@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 import httpx
 import os
 import json
+import asyncio
 from typing import Optional, Dict, Any
 from app.models.order import Order, OrderStatus
 from app.services.rest_proxy import RestProxyService
@@ -10,14 +11,14 @@ from app.schemas.schema_registry import SchemaRegistryService
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.db.database import get_db
 from app.kafka_logger import get_kafka_logger
+ from app.db.database import SessionLocal
+ from app.models.order_item import OrderItem
 
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 KAFKA_TOPIC = 'logs.order-service'  
 logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
-# ---
-# HTTP REST: Synchronous, request/response operations
-# ---
+
 class ProductService:
     def __init__(self):
         self.base_url = os.getenv("PRODUCT_SERVICE_URL", "http://localhost:8002")
@@ -145,14 +146,13 @@ class PaymentService:
 
     async def update_payment_order_id(self, payment_id: int, order_id: int, auth_token: str) -> None:
         logger.debug(f"Requesting update of payment {payment_id} with order {order_id} via event")
-        # Instead of making a REST call, publish an event for the Payment Service to consume
         await self.rest_proxy.send_event({
             "event": "update_payment_order_id_requested",
             "payment_id": payment_id,
             "order_id": order_id
         }, auth_token=auth_token, topic="payment-events")
         logger.info(f"Published update_payment_order_id_requested event for payment {payment_id} and order {order_id}")
-        # The Payment Service should consume this event and perform the update
+
 
 class OrderService:
     def __init__(self, db: Session):
@@ -168,8 +168,14 @@ class OrderService:
                 {"name": "event", "type": "string"},
                 {"name": "order_id", "type": "int"},
                 {"name": "user_id", "type": "int"},
-                {"name": "product_id", "type": "int"},
-                {"name": "quantity", "type": "int"},
+                {"name": "items", "type": {"type": "array", "items": {
+                    "type": "record",
+                    "name": "OrderItem",
+                    "fields": [
+                        {"name": "product_id", "type": "int"},
+                        {"name": "quantity", "type": "int"}
+                    ]
+                }}},
                 {"name": "status", "type": "string"}
             ]
         }
@@ -184,38 +190,42 @@ class OrderService:
         logger.info(f"Payment info received: {order_data.payment_info}")
         db_order = None
         try:
-            # Step 1: Check stock availability (still synchronous)
-            logger.debug(f"Checking stock for product {order_data.product_id} and quantity {order_data.quantity}")
-            if not await self.product_service.check_stock(order_data.product_id, order_data.quantity, auth_token):
-                logger.warning(f"Insufficient stock for product {order_data.product_id}")
-                raise Exception("Insufficient stock")
+            # Check stock for all items
+            total_amount = 0.0
+            product_details = []
+            for item in order_data.items:
+                logger.debug(f"Checking stock for product {item.product_id} and quantity {item.quantity}")
+                if not await self.product_service.check_stock(item.product_id, item.quantity, auth_token):
+                    logger.warning(f"Insufficient stock for product {item.product_id}")
+                    raise Exception(f"Insufficient stock for product {item.product_id}")
+                product = await self.product_service.get_product(item.product_id, auth_token)
+                product_details.append(product)
+                total_amount += product["price"] * item.quantity
 
-            # Step 2: Get product details to calculate total amount (still synchronous)
-            logger.debug(f"Fetching product details for product {order_data.product_id}")
-            product = await self.product_service.get_product(order_data.product_id, auth_token)
-            total_amount = product["price"] * order_data.quantity
-            logger.debug(f"Calculated total amount for order: {total_amount}")
-
-           
             frontend_amount = order_data.payment_info.amount if order_data.payment_info else None
             if frontend_amount and frontend_amount != total_amount:
                 logger.warning(f"Payment amount mismatch: frontend={frontend_amount}, calculated={total_amount}")
-               
 
-            
             logger.debug("Adding order to database in PAYMENT_PENDING state")
             db_order = Order(
                 user_id=order_data.user_id,
-                product_id=order_data.product_id,
-                quantity=order_data.quantity,
                 status=OrderStatus.PENDING
             )
             self.db.add(db_order)
+            self.db.flush() 
+
+            for idx, item in enumerate(order_data.items):
+                db_item = OrderItem(
+                    order_id=db_order.id,
+                    product_id=item.product_id,
+                    quantity=item.quantity
+                )
+                self.db.add(db_item)
             self.db.commit()
             self.db.refresh(db_order)
             logger.info(f"Order created with ID: {db_order.id} in PAYMENT_PENDING state")
 
-            # Step 5: Publish create_payment event to Kafka (async)
+            # Publish create_payment event to Kafka 
             payment_info_dict = {
                 'amount': order_data.payment_info.amount,
                 'card_holder_name': order_data.payment_info.card_holder_name,
@@ -232,17 +242,17 @@ class OrderService:
                 "user_id": order_data.user_id
             }, auth_token=auth_token, topic="payment-events")
 
-            
+            # Publish order_created_pending_payment event with all items
             await self.rest_proxy.send_event({
                 "event": "order_created_pending_payment",
                 "order_id": db_order.id,
                 "user_id": order_data.user_id,
-                "product_id": order_data.product_id,
-                "quantity": order_data.quantity,
+                "items": [
+                    {"product_id": item.product_id, "quantity": item.quantity} for item in order_data.items
+                ],
                 "status": OrderStatus.PENDING.value
             }, auth_token=auth_token, topic="order-events")
 
-            
             return db_order
         except Exception as e:
             logger.error(f"Error creating order: {e}")
@@ -327,46 +337,59 @@ class OrderService:
 
     
     async def handle_payment_completed_event(self, event: dict):
-        logger.debug(f"Session id: {id(self.db)}")
-        all_orders = self.db.query(Order).all()
-        logger.debug(f"All order IDs in DB at event time: {[o.id for o in all_orders]}")
-        order = self.get_order(event['order_id'])
+         
+        logger.debug(f"Handling payment_completed event with fresh session. Event: {event}")
         retry_count = 0
-        while not order and retry_count < 3:
-            logger.warning(f"Order {event['order_id']} not found, retrying in 0.5s (attempt {retry_count+1})")
-            await asyncio.sleep(0.5)
-            order = self.get_order(event['order_id'])
-            retry_count += 1
+        order = None
+        while retry_count < 3 and not order:
+            with SessionLocal() as session:
+                all_orders = session.query(Order).all()
+                logger.debug(f"[Retry {retry_count+1}] All order IDs in DB at event time: {[o.id for o in all_orders]}")
+                order = session.query(Order).filter(Order.id == event['order_id']).first()
+                if order:
+                    
+                    _ = list(order.items)
+                    break
+            if not order:
+                logger.warning(f"Order {event['order_id']} not found, retrying in 0.5s (attempt {retry_count+1})")
+                await asyncio.sleep(0.5)
+                retry_count += 1
         if not order:
             logger.error(f"Order {event['order_id']} not found for payment completion event after retries")
             return
         if event.get('status', '').upper() == 'SUCCESSFUL':
-            order.status = OrderStatus.COMPLETED
-            self.db.commit()
-            self.db.refresh(order)
-            logger.info(f"Order {order.id} marked as COMPLETED after payment success")
-            # Publish event to reduce stock
-            await self.rest_proxy.send_event({
-                "event": "update_stock",
-                "product_id": order.product_id,
-                "quantity": order.quantity,
-                "increase": False,
-                "reason": "order_completed",
-                "order_id": order.id
-            }, auth_token=None, topic="product-events")
-            # Optionally, publish order_completed event
-            await self.rest_proxy.send_event({
-                "event": "order_completed",
-                "order_id": order.id,
-                "user_id": order.user_id,
-                "product_id": order.product_id,
-                "quantity": order.quantity,
-                "status": OrderStatus.COMPLETED.value
-            }, auth_token=None, topic="order-events")
+            with SessionLocal() as session:
+                order = session.query(Order).filter(Order.id == event['order_id']).first()
+                if not order:
+                    logger.error(f"Order {event['order_id']} not found in commit session!")
+                    return
+                order.status = OrderStatus.COMPLETED
+                session.commit()
+                session.refresh(order)
+                logger.info(f"Order {order.id} marked as COMPLETED after payment success")
+                # Publish event(s) to reduce stock for each item
+                for item in order.items:
+                    await self.rest_proxy.send_event({
+                        "event": "update_stock",
+                        "product_id": item.product_id,
+                        "quantity": item.quantity,
+                        "increase": False,
+                        "reason": "order_completed",
+                        "order_id": order.id
+                    }, auth_token=None, topic="product-events")
+                
+                await self.rest_proxy.send_event({
+                    "event": "order_completed",
+                    "order_id": order.id,
+                    "user_id": order.user_id,
+                    "items": [
+                        {"product_id": item.product_id, "quantity": item.quantity} for item in order.items
+                    ],
+                    "status": OrderStatus.COMPLETED.value
+                }, auth_token=None, topic="order-events")
         else:
-            
-            await self._delete_order(order.id)
-            logger.info(f"Order {order.id} deleted due to payment failure")
+            await self._delete_order(event['order_id'])
+            logger.info(f"Order {event['order_id']} deleted due to payment failure")
 
     
     async def handle_stock_updated_event(self, event: dict):
@@ -374,4 +397,4 @@ class OrderService:
         if event.get('status', '').upper() == 'SUCCESSFUL':
             logger.info(f"Stock updated")
         else:
-            logger.warning(f"Stock update failed ") 
+            logger.warning(f"Stock update failed ")

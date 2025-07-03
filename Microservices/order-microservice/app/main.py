@@ -8,6 +8,7 @@ from app.db.database import engine, Base
 from app.kafka_logger import get_kafka_logger
 from app.services.order_consumer import OrderConsumer
 from app.db.database import SessionLocal
+from app.models.order_item import OrderItem  
 import asyncio
 import os
 

@@ -1,5 +1,6 @@
 from app.db.database import Base, engine
 from app.models.order import Order
+from app.models.order_item import OrderItem  
 import os
 from dotenv import load_dotenv
 from app.kafka_logger import get_kafka_logger
@@ -10,7 +11,6 @@ logger = get_kafka_logger(__name__, KAFKA_BROKER, KAFKA_TOPIC)
 
 def init_db():
     try:
-        # Create all tables
         Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
     except Exception as e:
@@ -20,4 +20,4 @@ def init_db():
 if __name__ == "__main__":
     logger.info("Creating initial database tables")
     init_db()
-    logger.info("Database initialization completed") 
+    logger.info("Database initialization completed")

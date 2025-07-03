@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from app.models.order import OrderStatus
 
 class PaymentInfo(BaseModel):
@@ -8,33 +8,42 @@ class PaymentInfo(BaseModel):
     card_number: str = Field(..., description="Card number")
     cvv: str = Field(..., description="CVV")
     expiry_date: str = Field(..., description="Expiry date")
-    
-class OrderBase(BaseModel):
-    product_id: str = Field(..., description="ID of the product to order")
+
+class OrderItemBase(BaseModel):
+    product_id: int = Field(..., description="ID of the product to order")
     quantity: int = Field(..., gt=0, description="Quantity of the product to order")
 
-class OrderCreate(OrderBase):
+class OrderItemCreate(OrderItemBase):
+    pass
+
+class OrderItemResponse(OrderItemBase):
+    id: int
+    class Config:
+        from_attributes = True
+
+class OrderCreate(BaseModel):
     user_id: int = Field(..., gt=0, description="ID of the user placing the order")
+    items: List[OrderItemCreate] = Field(..., description="List of items in the order")
     payment_info: PaymentInfo = Field(..., description="Payment information")
 
 class OrderUpdate(BaseModel):
     status: Optional[OrderStatus] = None
 
-class OrderResponse(OrderBase):
+class OrderResponse(BaseModel):
     id: int
     user_id: int
     status: OrderStatus
-
+    items: List[OrderItemResponse]
     class Config:
         from_attributes = True
-        
+
 class OrdersSummaryResponse(BaseModel):
     total_orders: int
     total_customers: int
     unique_customers: int
 
 class OrderList(BaseModel):
-    orders: list[OrderResponse]
+    orders: List[OrderResponse]
     total: int 
 
 class OrderWithTotal(OrderResponse):

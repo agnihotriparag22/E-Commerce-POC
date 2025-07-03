@@ -55,7 +55,7 @@ alembic upgrade head
 Start the service with uvicorn:
 
 ```bash
-uvicorn app.main:app --reload --port 8004
+uvicorn app.main:app --reload --port 8000
 ```
 
 The service will be available at `http://localhost:8004`
