@@ -79,7 +79,7 @@ def read_product(
 
 @router.post("", response_model=ProductSchema)  # Empty string for root path
 @router.post("/", response_model=ProductSchema)  # With trailing slash
-def create_product(
+async def create_product(
     product: ProductCreate,
     product_repo: ProductRepository = Depends(get_product_repository),
     current_user: dict = Depends(verify_admin)
@@ -93,12 +93,12 @@ def create_product(
         raise HTTPException(status_code=404, detail="Category not found")
     
     # Create product
-    db_product = product_repo.create_product(product.dict())
+    db_product = await product_repo.create_product(product.dict())
     logger.info(f"Product created with id={db_product.id}")
     return db_product
 
 @router.put("/{product_id}", response_model=ProductSchema)
-def update_product(
+async def update_product(
     product_id: int,
     product: ProductUpdate,
     product_repo: ProductRepository = Depends(get_product_repository),
@@ -108,7 +108,7 @@ def update_product(
     
     # Update product
     update_data = product.dict(exclude_unset=True)
-    db_product = product_repo.update_product(product_id, update_data)
+    db_product = await product_repo.update_product(product_id, update_data)
     
     if db_product is None:
         logger.warning(f"Product with id={product_id} not found for update")
@@ -118,14 +118,14 @@ def update_product(
     return db_product
 
 @router.delete("/{product_id}")
-def delete_product(
+async def delete_product(
     product_id: int,
     product_repo: ProductRepository = Depends(get_product_repository),
     current_user: dict = Depends(verify_admin)
 ):
     logger.info(f"Deleting product with id={product_id}")
     
-    success = product_repo.delete_product(product_id)
+    success = await product_repo.delete_product(product_id)
     if not success:
         logger.warning(f"Product with id={product_id} not found for deletion")
         raise HTTPException(status_code=404, detail="Product not found")
@@ -152,6 +152,7 @@ def decrease_stock(
     
     logger.info(f"Stock for product id={product_id} decreased successfully, new_stock={product.stock}")
     return {"message": "Stock decreased successfully", "new_stock": product.stock}
+
 
 @router.post("/{product_id}/increase-stock")
 def increase_stock(

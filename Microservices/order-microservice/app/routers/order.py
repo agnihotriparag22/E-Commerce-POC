@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.db.database import get_db
 from app.services.order_service import OrderService
-from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate, OrderList, OrderWithTotal, OrdersSummaryResponse
+from app.schemas.order import OrderCreate, OrderResponse, OrderUpdate, OrderList, OrderWithTotal, OrdersSummaryResponse, OrderItemResponse
 from app.core.auth import get_current_user
 from app.core.auth import verify_token
 import httpx
@@ -26,7 +26,16 @@ async def get_orders(
 ):
     order_service = OrderService(db)
     orders = order_service.get_all_orders()
-    return orders
+    response = []
+    for order in orders:
+        items = [OrderItemResponse(product_id=item.product_id, quantity=item.quantity) for item in order.items]
+        response.append(OrderResponse(
+            id=order.id,
+            user_id=order.user_id,
+            status=order.status,
+            items=items
+        ))
+    return response
 
 @router.get("/orders/summary", response_model=OrdersSummaryResponse)
 async def get_orders_summary(
@@ -70,7 +79,13 @@ async def create_order(
     order_service = OrderService(db)
     try:
         order = await order_service.create_order(order_data, current_user["token"])
-        return order
+        items = [OrderItemResponse(product_id=item.product_id, quantity=item.quantity) for item in order.items]
+        return OrderResponse(
+            id=order.id,
+            user_id=order.user_id,
+            status=order.status,
+            items=items
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -101,8 +116,13 @@ async def get_order(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this order"
         )
-    
-    return order
+    items = [OrderItemResponse(product_id=item.product_id, quantity=item.quantity) for item in order.items]
+    return OrderResponse(
+        id=order.id,
+        user_id=order.user_id,
+        status=order.status,
+        items=items
+    )
 
 @router.get("/orders/user/{user_id}", response_model=OrderList)
 async def get_user_orders(
@@ -122,9 +142,16 @@ async def get_user_orders(
 
     order_service = OrderService(db)
     orders = order_service.get_orders_by_user(user_id)
-    return OrderList(orders=orders, total=len(orders))
-
-
+    order_list = []
+    for order in orders:
+        items = [OrderItemResponse(product_id=item.product_id, quantity=item.quantity) for item in order.items]
+        order_list.append(OrderResponse(
+            id=order.id,
+            user_id=order.user_id,
+            status=order.status,
+            items=items
+        ))
+    return OrderList(orders=order_list, total=len(order_list))
 
 @router.post("/orders/{order_id}/complete", response_model=OrderResponse)
 async def complete_order(

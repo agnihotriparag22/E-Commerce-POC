@@ -11,8 +11,8 @@ from app.schemas.schema_registry import SchemaRegistryService
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.db.database import get_db
 from app.kafka_logger import get_kafka_logger
- from app.db.database import SessionLocal
- from app.models.order_item import OrderItem
+from app.db.database import SessionLocal
+from app.models.order_item import OrderItem
 
 KAFKA_BROKER = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
 KAFKA_TOPIC = 'logs.order-service'  

@@ -16,8 +16,10 @@ class OrderItemBase(BaseModel):
 class OrderItemCreate(OrderItemBase):
     pass
 
-class OrderItemResponse(OrderItemBase):
-    id: int
+# Response schema for order items (only product_id and quantity, no id)
+class OrderItemResponse(BaseModel):
+    product_id: int
+    quantity: int
     class Config:
         from_attributes = True
 
