@@ -339,6 +339,33 @@ class OrderService:
         logger.debug("Fetching all orders from database")
         return self.db.query(Order).all()
         
+    def update_order_status(self, order_id: int, new_status: str):
+        """
+        Update the status of an order.
+        Args:
+            order_id (int): The ID of the order to update.
+            new_status (str): The new status to set ('PENDING', 'COMPLETED', 'CANCELLED').
+        Returns:
+            Order: The updated order object, or None if not found.
+        """
+        logger.debug(f"Updating status for order {order_id} to {new_status}")
+        order = self.db.query(Order).filter(Order.id == order_id).first()
+        if not order:
+            logger.warning(f"Order {order_id} not found for status update")
+            return None
+
+        # Validate new_status
+        valid_statuses = {status.value for status in OrderStatus}
+        if new_status not in valid_statuses:
+            logger.error(f"Invalid status '{new_status}' for order {order_id}")
+            raise ValueError(f"Invalid status '{new_status}'. Valid statuses: {valid_statuses}")
+
+        order.status = new_status
+        self.db.commit()
+        self.db.refresh(order)
+        logger.info(f"Order {order_id} status updated to {new_status}")
+        return order
+        
     async def handle_payment_completed_event(self, event: dict):
          
         logger.debug(f"Handling payment_completed event with fresh session. Event: {event}")
